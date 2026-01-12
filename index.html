@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="勤怠管理">
-  <title>勤怠管理アプリ</title>
+  <meta name="apple-mobile-web-app-title" content="勤怠管理【東京架設】">
+  <title>勤怠管理【東京架設】</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     * {
       margin: 0;
@@ -231,6 +233,275 @@
       color: #94a3b8;
       margin-bottom: 4px;
     }
+    .status-otsukare {
+      font-size: 16px;
+      color: #10b981;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    .month-selector {
+      margin-bottom: 16px;
+    }
+    .month-select {
+      width: 100%;
+      padding: 14px 16px;
+      background-color: #1e293b;
+      border: 1px solid #475569;
+      border-radius: 12px;
+      color: #f1f5f9;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+    }
+    .month-summary {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .month-summary-item {
+      flex: 1;
+      background: linear-gradient(135deg, #1e3a5f, #1e293b);
+      border: 1px solid #3b82f6;
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+    .month-summary-label {
+      display: block;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+    .month-summary-value {
+      display: block;
+      font-size: 24px;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+    .calendar-toggle-btn {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px;
+    }
+    .calendar-popup {
+      position: fixed;
+      top: 70px;
+      right: 12px;
+      z-index: 200;
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      width: 260px;
+    }
+    .calendar-popup.hidden {
+      display: none;
+    }
+    .mini-calendar {
+      background-color: transparent;
+      border-radius: 0;
+      padding: 0;
+      margin-bottom: 0;
+    }
+    .mini-calendar-header {
+      text-align: center;
+      font-size: 14px;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin-bottom: 8px;
+    }
+    .mini-calendar-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      text-align: center;
+      font-size: 11px;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+    .mini-calendar-weekdays .sunday { color: #ef4444; }
+    .mini-calendar-weekdays .saturday { color: #3b82f6; }
+    .mini-calendar-days {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+      text-align: center;
+    }
+    .mini-calendar-days span {
+      font-size: 12px;
+      padding: 4px 0;
+      border-radius: 4px;
+      color: #e2e8f0;
+    }
+    .mini-calendar-days span.empty { visibility: hidden; }
+    .mini-calendar-days span.today {
+      background-color: #3b82f6;
+      color: white;
+      font-weight: 700;
+    }
+    .mini-calendar-days span.holiday { color: #ef4444; }
+    .mini-calendar-days span.saturday { color: #3b82f6; }
+    .mini-calendar-days span.worked::after {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 4px;
+      background-color: #10b981;
+      border-radius: 50%;
+      margin: 0 auto;
+    }
+    .paid-leave-info {
+      background: linear-gradient(135deg, #1e3a5f, #1e293b);
+      border: 1px solid #3b82f6;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #93c5fd;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    .paid-leave-info.today {
+      background: linear-gradient(135deg, #14532d, #1e293b);
+      border-color: #10b981;
+      color: #6ee7b7;
+    }
+    .gps-notice {
+      font-size: 11px;
+      color: #64748b;
+      text-align: center;
+      margin: -8px 0 12px 0;
+    }
+    .home-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .settings-btn {
+      width: 100%;
+      padding: 14px;
+      background-color: #475569;
+      border: none;
+      border-radius: 12px;
+      color: #f1f5f9;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    .settings-section {
+      margin-bottom: 24px;
+    }
+    .settings-section-title {
+      font-size: 14px;
+      color: #94a3b8;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #334155;
+    }
+    .settings-card {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .settings-card-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin-bottom: 8px;
+    }
+    .settings-card-desc {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 12px;
+    }
+    .settings-input-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .settings-input {
+      flex: 1;
+      padding: 12px;
+      background-color: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 14px;
+    }
+    .settings-save-btn {
+      padding: 12px 16px;
+      background-color: #3b82f6;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .settings-card-note {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 8px;
+    }
+    .address-request-card {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border-left: 4px solid #f59e0b;
+    }
+    .address-request-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .address-request-employee {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .address-request-date {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .address-request-detail {
+      font-size: 14px;
+      color: #e2e8f0;
+      background-color: #0f172a;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    .address-request-actions {
+      margin-bottom: 8px;
+    }
+    .confirm-address-btn {
+      width: 100%;
+      padding: 12px;
+      background-color: #10b981;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .address-request-note {
+      font-size: 11px;
+      color: #64748b;
+      text-align: center;
+    }
     .history-btn {
       width: 100%;
       padding: 16px;
@@ -352,7 +623,879 @@
       border-radius: 12px;
       color: #f1f5f9;
       font-size: 16px;
+      margin-bottom: 12px;
+    }
+    .attendance-summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background-color: #1e293b;
+      border-radius: 10px;
       margin-bottom: 16px;
+    }
+    .attendance-date {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .attendance-count {
+      font-size: 14px;
+      color: #3b82f6;
+      font-weight: 600;
+    }
+    .attendance-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .attendance-cell {
+      background-color: #1e293b;
+      border-radius: 10px;
+      padding: 12px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.1s, background-color 0.1s;
+      border: 2px solid transparent;
+    }
+    .attendance-cell:active {
+      transform: scale(0.97);
+    }
+    .attendance-cell.present {
+      border-color: #10b981;
+    }
+    .attendance-cell.present.all-completed {
+      border-color: #f59e0b;
+    }
+    .attendance-cell.present:hover {
+      background-color: #1e3a3a;
+    }
+    .attendance-cell.absent {
+      opacity: 0.6;
+    }
+    .attendance-name {
+      display: block;
+      font-size: 12px;
+      color: #e2e8f0;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .attendance-mark {
+      display: block;
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .attendance-marks {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin: 4px 0;
+    }
+    .attendance-mark-item {
+      position: relative;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 8px;
+      background-color: rgba(255,255,255,0.05);
+      transition: background-color 0.15s;
+    }
+    .attendance-mark-item:hover {
+      background-color: rgba(255,255,255,0.15);
+    }
+    .attendance-mark-item:active {
+      background-color: rgba(255,255,255,0.2);
+    }
+    .mark-circle {
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .attendance-mark-item.working .mark-circle,
+    .attendance-mark-item.working .mark-shift {
+      color: #10b981;
+    }
+    .attendance-mark-item.completed .mark-circle,
+    .attendance-mark-item.completed .mark-shift {
+      color: #f59e0b;
+    }
+    .mark-shift {
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+      margin-top: 1px;
+    }
+    .mark-done {
+      font-size: 8px;
+      color: #94a3b8;
+      margin-top: -2px;
+    }
+    .attendance-cell.present .attendance-mark {
+      color: #10b981;
+    }
+    .attendance-cell.absent .attendance-mark {
+      color: #64748b;
+    }
+    .attendance-site {
+      display: block;
+      font-size: 10px;
+      color: #94a3b8;
+      margin-top: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .attendance-detail-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+    .attendance-detail-modal.hidden {
+      display: none;
+    }
+    .attendance-detail-content {
+      background-color: #1e293b;
+      border-radius: 16px;
+      padding: 20px;
+      width: 100%;
+      max-width: 350px;
+      position: relative;
+    }
+    .attendance-detail-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: #475569;
+      border: none;
+      color: white;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .attendance-detail-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 16px;
+      padding-right: 30px;
+    }
+    .attendance-detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #334155;
+      font-size: 14px;
+    }
+    .attendance-detail-row:last-child {
+      border-bottom: none;
+    }
+    .attendance-detail-label {
+      color: #94a3b8;
+    }
+    .attendance-detail-value {
+      color: #f1f5f9;
+      font-weight: 500;
+    }
+    .attendance-detail-map-btn {
+      width: 100%;
+      margin-top: 16px;
+      padding: 12px;
+      background-color: #3b82f6;
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .attendance-detail-map-btn:disabled {
+      background-color: #475569;
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .attendance-detail-delete-btn {
+      width: 100%;
+      margin-top: 10px;
+      padding: 12px;
+      background-color: #dc2626;
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    /* 稼働現場一覧グリッド */
+    .site-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .site-cell {
+      background-color: #1e293b;
+      border-radius: 10px;
+      padding: 12px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.1s, background-color 0.1s;
+      border: 2px solid transparent;
+    }
+    .site-cell:active {
+      transform: scale(0.97);
+    }
+    .site-cell.active {
+      border-color: #10b981;
+    }
+    .site-cell.active.all-completed {
+      border-color: #f59e0b;
+    }
+    .site-cell.inactive {
+      opacity: 0.6;
+    }
+    .site-cell-name {
+      display: block;
+      font-size: 11px;
+      color: #e2e8f0;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .site-cell-mark {
+      display: block;
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .site-cell.active .site-cell-mark {
+      color: #10b981;
+    }
+    .site-cell.active.all-completed .site-cell-mark {
+      color: #f59e0b;
+    }
+    .site-cell.inactive .site-cell-mark {
+      color: #64748b;
+    }
+    .site-cell-count {
+      display: block;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+    /* 現場詳細モーダル */
+    .site-detail-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+    .site-detail-modal.hidden {
+      display: none;
+    }
+    .site-detail-modal-content {
+      background-color: #1e293b;
+      border-radius: 16px;
+      padding: 20px;
+      width: 100%;
+      max-width: 400px;
+      max-height: 80vh;
+      overflow-y: auto;
+      position: relative;
+    }
+    .site-detail-modal-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: #475569;
+      border: none;
+      color: white;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .site-detail-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 16px;
+      padding-right: 30px;
+    }
+    .site-detail-section {
+      margin-bottom: 16px;
+    }
+    .site-detail-section-title {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    .site-worker-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #334155;
+      font-size: 13px;
+    }
+    .site-worker-row:last-child {
+      border-bottom: none;
+    }
+    .site-worker-name {
+      color: #f1f5f9;
+    }
+    .site-worker-time {
+      color: #94a3b8;
+      font-size: 12px;
+    }
+    .site-worker-status {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+    .site-worker-status.working {
+      background-color: #10b981;
+      color: white;
+    }
+    .site-worker-status.completed {
+      background-color: #f59e0b;
+      color: white;
+    }
+    .site-report-input-group {
+      margin-bottom: 12px;
+    }
+    .site-report-label {
+      display: block;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+    .site-report-input {
+      width: 100%;
+      padding: 10px;
+      background-color: #0f172a;
+      border: 1px solid #475569;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 14px;
+    }
+    .site-report-save-btn {
+      width: 100%;
+      padding: 12px;
+      background-color: #3b82f6;
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .site-section {
+      margin-bottom: 24px;
+    }
+    .site-section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: 12px;
+    }
+    .completed-section {
+      opacity: 0.7;
+    }
+    .site-cell.completed-site {
+      background-color: #374151;
+      border-color: #6b7280;
+    }
+    .site-cell.completed-site .site-cell-mark {
+      color: #10b981;
+    }
+    .site-cell-date {
+      display: block;
+      font-size: 10px;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+    .site-scaffolding-badge {
+      display: inline-block;
+      font-size: 9px;
+      background-color: #3b82f6;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 8px;
+      margin-top: 4px;
+    }
+    .site-completion-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #475569;
+    }
+    .site-completion-title {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    .site-completion-btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 8px;
+    }
+    .site-completion-btn.scaffolding {
+      background-color: #8b5cf6;
+    }
+    .site-completion-btn.scaffolding.done {
+      background-color: #6b7280;
+    }
+    .site-completion-btn.complete {
+      background-color: #f59e0b;
+    }
+    .site-completion-btn.restore {
+      background-color: #10b981;
+    }
+    /* 各現場収支 */
+    .finance-card {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .finance-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #475569;
+    }
+    .finance-site-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .finance-status {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .finance-status.active {
+      background-color: #10b981;
+      color: white;
+    }
+    .finance-status.completed {
+      background-color: #6b7280;
+      color: white;
+    }
+    .finance-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      font-size: 13px;
+    }
+    .finance-row.total {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #475569;
+      font-weight: 600;
+    }
+    .finance-label {
+      color: #94a3b8;
+    }
+    .finance-value {
+      color: #f1f5f9;
+    }
+    .finance-value.profit-positive {
+      color: #10b981;
+    }
+    .finance-value.profit-negative {
+      color: #ef4444;
+    }
+    .finance-sub-info {
+      display: flex;
+      gap: 16px;
+      margin-top: 8px;
+      font-size: 11px;
+      color: #64748b;
+    }
+    /* 各現場収支リンクカード */
+    .finance-card-link {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: background-color 0.15s;
+    }
+    .finance-card-link:active {
+      background-color: #334155;
+    }
+    .finance-link-text {
+      font-size: 12px;
+      color: #60a5fa;
+      margin-top: 8px;
+    }
+    .finance-status.scaffolding {
+      background-color: #8b5cf6;
+      color: white;
+    }
+    /* 収支詳細画面 */
+    .finance-detail-header {
+      margin-bottom: 16px;
+    }
+    .finance-detail-site-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin: 0 0 4px 0;
+    }
+    .finance-detail-status {
+      font-size: 12px;
+      color: #94a3b8;
+      margin: 0;
+    }
+    .finance-summary-card {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .finance-summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 14px;
+      color: #f1f5f9;
+    }
+    .finance-summary-row.total {
+      border-top: 1px solid #475569;
+      margin-top: 8px;
+      padding-top: 12px;
+      font-weight: 700;
+      font-size: 16px;
+    }
+    .finance-summary-row.rate {
+      font-size: 14px;
+      color: #94a3b8;
+    }
+    .finance-phase-section {
+      margin-bottom: 24px;
+    }
+    .finance-phase-section.disabled {
+      opacity: 0.5;
+    }
+    .finance-phase-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .finance-phase-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin: 0;
+    }
+    .finance-add-month-btn {
+      background-color: #3b82f6;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      color: white;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .finance-phase-summary {
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 12px;
+    }
+    .finance-month-card {
+      background-color: #1e293b;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    .finance-month-card:active {
+      background-color: #334155;
+    }
+    .finance-month-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .finance-month-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .finance-month-edit {
+      font-size: 11px;
+      color: #60a5fa;
+    }
+    .finance-month-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #94a3b8;
+      padding: 2px 0;
+    }
+    .empty-text-small {
+      text-align: center;
+      color: #64748b;
+      padding: 16px;
+      font-size: 13px;
+    }
+    /* 収支詳細 新デザイン */
+    .finance-section-card {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .finance-section-card.disabled {
+      opacity: 0.5;
+    }
+    .finance-section-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin: 0 0 16px 0;
+    }
+    .finance-input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .finance-input-row label {
+      flex: 0 0 100px;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .finance-input {
+      flex: 1;
+      padding: 10px 12px;
+      background-color: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 14px;
+      text-align: right;
+    }
+    .finance-unit {
+      font-size: 12px;
+      color: #64748b;
+      width: 24px;
+    }
+    .finance-display-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      font-size: 13px;
+      color: #94a3b8;
+      border-bottom: 1px solid #334155;
+      margin-bottom: 12px;
+    }
+    .finance-save-btn {
+      width: 100%;
+      padding: 12px;
+      background-color: #3b82f6;
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .finance-result-box {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #475569;
+    }
+    .finance-result-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 14px;
+      color: #f1f5f9;
+    }
+    .finance-result-row.total {
+      font-weight: 700;
+      font-size: 16px;
+    }
+    /* アコーディオン式収支 */
+    .finance-top-summary {
+      background: linear-gradient(135deg, #1e3a5f, #1e293b);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .finance-top-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 8px;
+    }
+    .finance-top-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      color: #94a3b8;
+      padding: 4px 0;
+    }
+    .finance-top-row span:last-child {
+      font-weight: 600;
+      font-size: 16px;
+    }
+    .accordion-item {
+      background-color: #1e293b;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+    .accordion-item.disabled {
+      opacity: 0.5;
+    }
+    .accordion-header {
+      padding: 14px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #f1f5f9;
+      cursor: pointer;
+      background-color: #334155;
+    }
+    .accordion-body {
+      padding: 12px;
+    }
+    .accordion-body.hidden {
+      display: none;
+    }
+    .acc-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+    .acc-row label {
+      flex: 0 0 80px;
+      color: #94a3b8;
+    }
+    .acc-row.display {
+      justify-content: space-between;
+      padding: 8px;
+      background-color: #0f172a;
+      border-radius: 6px;
+      color: #94a3b8;
+    }
+    .acc-input {
+      flex: 1;
+      padding: 8px;
+      background-color: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #f1f5f9;
+      font-size: 13px;
+      text-align: right;
+    }
+    .acc-row span:last-child {
+      color: #64748b;
+      font-size: 11px;
+      width: 20px;
+    }
+    .acc-material-section {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #334155;
+    }
+    .acc-material-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .acc-add-btn {
+      background-color: #3b82f6;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      width: 28px;
+      height: 28px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .material-month-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px;
+      background-color: #0f172a;
+      border-radius: 6px;
+      margin-bottom: 4px;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .material-del-btn {
+      background: none;
+      border: none;
+      color: #ef4444;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 4px;
+    }
+    .acc-save-btn {
+      width: 100%;
+      padding: 10px;
+      background-color: #3b82f6;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .acc-empty {
+      font-size: 11px;
+      color: #64748b;
     }
     .date-label {
       font-size: 18px;
@@ -500,6 +1643,25 @@
       color: #f1f5f9;
       font-size: 14px;
       font-weight: 500;
+    }
+    .menu-card-wide {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 500;
+      width: 100%;
+      margin-top: 12px;
+    }
+    .menu-card-wide .menu-icon {
+      font-size: 16px;
     }
     .menu-icon {
       font-size: 28px;
@@ -669,6 +1831,560 @@
     .hidden {
       display: none !important;
     }
+    .or-divider {
+      text-align: center;
+      margin: 16px 0;
+      position: relative;
+    }
+    .or-divider::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background-color: #475569;
+    }
+    .or-divider span {
+      background-color: #0f172a;
+      padding: 0 16px;
+      color: #94a3b8;
+      font-size: 14px;
+      position: relative;
+    }
+    .input-hint {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: -8px;
+      margin-bottom: 12px;
+    }
+    .edit-section {
+      background-color: #0f172a;
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .edit-row {
+      margin-bottom: 12px;
+    }
+    .edit-row:last-child {
+      margin-bottom: 0;
+    }
+    .edit-label {
+      display: block;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+    .edit-input-group {
+      display: flex;
+      gap: 8px;
+    }
+    .edit-input {
+      flex: 1;
+      padding: 10px 12px;
+      background-color: #1e293b;
+      border: 1px solid #475569;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 14px;
+    }
+    .edit-select {
+      flex: 1;
+      padding: 10px 12px;
+      background-color: #1e293b;
+      border: 1px solid #475569;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 14px;
+    }
+    .edit-save-btn {
+      padding: 10px 16px;
+      background-color: #3b82f6;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .edit-save-btn:active {
+      background-color: #2563eb;
+    }
+    .export-section {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .export-desc {
+      font-size: 14px;
+      color: #94a3b8;
+      margin-bottom: 16px;
+    }
+    .export-form {
+      margin-top: 16px;
+    }
+    .export-options {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .export-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      background-color: #0f172a;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .export-option input[type="radio"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #3b82f6;
+    }
+    .export-option span {
+      font-size: 14px;
+      color: #f1f5f9;
+    }
+    .export-btn {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      border: none;
+      border-radius: 12px;
+      color: white;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .export-btn:active {
+      opacity: 0.9;
+    }
+    .export-preview {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .delete-emp-btn {
+      width: 100%;
+      padding: 12px;
+      background-color: transparent;
+      border: 1px solid #e53e3e;
+      border-radius: 8px;
+      color: #e53e3e;
+      font-size: 14px;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+    .role-badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+    }
+    .role-badge.worker {
+      background-color: #3b82f6;
+    }
+    .role-badge.manager {
+      background-color: #10b981;
+    }
+    .role-badge.parttime {
+      background-color: #f59e0b;
+    }
+    .role-badge.subadmin {
+      background-color: #8b5cf6;
+    }
+    .admin-clockin-section, .subadmin-clockin-section {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border: 1px solid #475569;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .admin-greeting, .subadmin-greeting {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin-bottom: 12px;
+    }
+    .admin-buttons, .subadmin-buttons {
+      display: flex;
+      gap: 12px;
+    }
+    .admin-btn, .subadmin-btn {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      color: white;
+    }
+    .admin-btn.clock-in, .subadmin-btn.clock-in {
+      background: linear-gradient(135deg, #10b981, #059669);
+    }
+    .admin-btn.clock-out, .subadmin-btn.clock-out {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+    }
+    .admin-btn:disabled, .subadmin-btn:disabled {
+      background: #475569;
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .site-card.excluded-site {
+      opacity: 0.7;
+      border-left: 3px solid #64748b;
+    }
+    .input-label-small {
+      display: block;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+    .break-info-card {
+      background: linear-gradient(135deg, #1e3a5f, #1e293b);
+      border: 1px solid #3b82f6;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .break-info-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #60a5fa;
+      margin-bottom: 12px;
+    }
+    .break-info-table {
+      background-color: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .break-info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .break-info-row:last-child {
+      border-bottom: none;
+    }
+    .break-info-row span:first-child {
+      color: #94a3b8;
+      font-size: 13px;
+    }
+    .break-info-row span:last-child {
+      color: #f1f5f9;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .break-info-note {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 10px;
+      text-align: center;
+    }
+    .income-tracker-card {
+      background: linear-gradient(135deg, #065f46, #064e3b);
+      border: 1px solid #10b981;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .income-tracker-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #6ee7b7;
+      margin-bottom: 12px;
+    }
+    .income-tracker-main {
+      display: flex;
+      gap: 12px;
+    }
+    .income-tracker-item {
+      flex: 1;
+      background-color: rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+    }
+    .income-tracker-item.highlight {
+      background-color: rgba(16, 185, 129, 0.2);
+      border: 1px solid #10b981;
+    }
+    .income-tracker-label {
+      display: block;
+      font-size: 11px;
+      color: #a7f3d0;
+      margin-bottom: 4px;
+    }
+    .income-tracker-value {
+      display: block;
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .income-tracker-note {
+      font-size: 10px;
+      color: #6ee7b7;
+      margin-top: 10px;
+      text-align: center;
+    }
+    .income-wall-card {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border: 1px solid #475569;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .income-wall-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin-bottom: 4px;
+    }
+    .income-wall-subtitle {
+      font-size: 10px;
+      color: #64748b;
+      margin-bottom: 12px;
+    }
+    .income-wall-table {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .income-wall-row {
+      display: flex;
+      gap: 12px;
+      padding: 10px;
+      border-radius: 8px;
+      background-color: rgba(255, 255, 255, 0.03);
+      border-left: 3px solid #64748b;
+    }
+    .income-wall-row.safe {
+      border-left-color: #10b981;
+      background-color: rgba(16, 185, 129, 0.1);
+    }
+    .income-wall-row.over {
+      border-left-color: #ef4444;
+      background-color: rgba(239, 68, 68, 0.1);
+    }
+    .income-wall-left {
+      min-width: 80px;
+      text-align: center;
+    }
+    .income-wall-amount {
+      display: block;
+      font-size: 15px;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+    .income-wall-type {
+      display: block;
+      font-size: 9px;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+    .income-wall-right {
+      flex: 1;
+    }
+    .income-wall-desc {
+      font-size: 11px;
+      color: #94a3b8;
+      line-height: 1.4;
+    }
+    .income-wall-footer {
+      font-size: 9px;
+      color: #475569;
+      margin-top: 10px;
+      text-align: center;
+    }
+    .deleted-section {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 2px dashed #475569;
+    }
+    .deleted-card {
+      opacity: 0.7;
+      border: 1px dashed #64748b;
+    }
+    .restore-btn {
+      padding: 8px 16px;
+      background-color: #10b981;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .data-manage-section {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .reset-options {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .reset-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px;
+      background-color: #0f172a;
+      border-radius: 10px;
+      border: 2px solid transparent;
+      cursor: pointer;
+    }
+    .reset-option:has(input:checked) {
+      border-color: #3b82f6;
+      background-color: rgba(59, 130, 246, 0.1);
+    }
+    .reset-option.warning:has(input:checked) {
+      border-color: #f59e0b;
+      background-color: rgba(245, 158, 11, 0.1);
+    }
+    .reset-option input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      margin-top: 2px;
+      accent-color: #3b82f6;
+    }
+    .reset-option-content {
+      flex: 1;
+    }
+    .reset-option-title {
+      display: block;
+      font-size: 15px;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin-bottom: 4px;
+    }
+    .reset-option-desc {
+      display: block;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .reset-btn {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      border: none;
+      border-radius: 12px;
+      color: white;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-bottom: 16px;
+    }
+    .warning-box {
+      background-color: rgba(245, 158, 11, 0.1);
+      border: 1px solid #f59e0b;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+    .warning-box p {
+      font-size: 13px;
+      color: #f59e0b;
+      margin-bottom: 4px;
+    }
+    .warning-box p:last-child {
+      margin-bottom: 0;
+    }
+    .data-stats {
+      background-color: #0f172a;
+      border-radius: 8px;
+      padding: 4px;
+    }
+    .data-stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .data-stat-row:last-child {
+      border-bottom: none;
+    }
+    .data-stat-row span:first-child {
+      color: #94a3b8;
+    }
+    .data-stat-row span:last-child {
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .map-container {
+      width: 100%;
+      height: 200px;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+    .map-btn {
+      background-color: #3b82f6;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-left: 8px;
+    }
+    .map-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+    }
+    .map-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      background-color: #1e293b;
+    }
+    .map-modal-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .map-modal-close {
+      background: none;
+      border: none;
+      color: #f1f5f9;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0 8px;
+    }
+    .map-modal-body {
+      flex: 1;
+      position: relative;
+    }
+    .map-modal-body #modalMap {
+      width: 100%;
+      height: 100%;
+    }
+    .map-info {
+      padding: 12px 16px;
+      background-color: #1e293b;
+      font-size: 13px;
+      color: #94a3b8;
+    }
     
     /* 本日の勤怠履歴 */
     .today-history {
@@ -830,6 +2546,47 @@
   <div id="app"></div>
 
   <script>
+    // 日本の祝日データ（2025-2026年）
+    const HOLIDAYS = {
+      '2025-01-01': '元日',
+      '2025-01-13': '成人の日',
+      '2025-02-11': '建国記念の日',
+      '2025-02-23': '天皇誕生日',
+      '2025-02-24': '振替休日',
+      '2025-03-20': '春分の日',
+      '2025-04-29': '昭和の日',
+      '2025-05-03': '憲法記念日',
+      '2025-05-04': 'みどりの日',
+      '2025-05-05': 'こどもの日',
+      '2025-05-06': '振替休日',
+      '2025-07-21': '海の日',
+      '2025-08-11': '山の日',
+      '2025-09-15': '敬老の日',
+      '2025-09-23': '秋分の日',
+      '2025-10-13': 'スポーツの日',
+      '2025-11-03': '文化の日',
+      '2025-11-23': '勤労感謝の日',
+      '2025-11-24': '振替休日',
+      '2026-01-01': '元日',
+      '2026-01-12': '成人の日',
+      '2026-02-11': '建国記念の日',
+      '2026-02-23': '天皇誕生日',
+      '2026-03-20': '春分の日',
+      '2026-04-29': '昭和の日',
+      '2026-05-03': '憲法記念日',
+      '2026-05-04': 'みどりの日',
+      '2026-05-05': 'こどもの日',
+      '2026-05-06': '振替休日',
+      '2026-07-20': '海の日',
+      '2026-08-11': '山の日',
+      '2026-09-21': '敬老の日',
+      '2026-09-22': '国民の休日',
+      '2026-09-23': '秋分の日',
+      '2026-10-12': 'スポーツの日',
+      '2026-11-03': '文化の日',
+      '2026-11-23': '勤労感謝の日'
+    };
+
     // データ管理
     const Storage = {
       get: function(key, defaultValue) {
@@ -847,33 +2604,176 @@
       }
     };
 
+    // 強制リセット（バージョン管理）
+    const DATA_VERSION = 'v5_calendar';
+    if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
+      localStorage.removeItem('kintai_employees');
+      localStorage.removeItem('kintai_deletedEmployees');
+      localStorage.setItem('kintai_version', DATA_VERSION);
+    }
+
     // アプリ状態
     const App = {
       currentUser: null,
       currentView: 'login',
       employees: Storage.get('employees', [
-        { id: '1', name: '田中 太郎', role: 'worker', dailyRate: 15000, isActive: true, password: '1234' },
-        { id: '2', name: '佐藤 花子', role: 'worker', dailyRate: 14000, isActive: true, password: '1234' },
-        { id: '3', name: '鈴木 一郎', role: 'worker', dailyRate: 15000, isActive: true, password: '1234' },
-        { id: '4', name: '高橋 美咲', role: 'manager', dailyRate: 16000, isActive: true, password: '1234' },
-        { id: '5', name: '山田 健太', role: 'worker', dailyRate: 14000, isActive: true, password: '1234' },
-        { id: 'admin', name: '仁さん', role: 'admin', dailyRate: 0, isActive: true, password: 'admin' }
+        { id: '1', name: '椙山 圭', role: 'subadmin', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '2', name: '寺本 亮祐', role: 'subadmin', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '3', name: '椙山 良美', role: 'parttime', dailyRate: 0, hourlyRate: 1200, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '4', name: '松川 大輔', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '5', name: '松川 敦', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '6', name: '小関 弘志', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '7', name: '青山 海斗', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '8', name: '戸塚 力', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '9', name: '戸塚 志保', role: 'parttime', dailyRate: 0, hourlyRate: 1200, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '10', name: '月精 晃大', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '11', name: '渡部 直人', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: 'admin', name: '戸塚 仁', role: 'admin', dailyRate: 0, hourlyRate: 0, isActive: true, password: 'admin', paidLeaveDate: '' }
       ]),
       jobSites: Storage.get('jobsites', [
-        { id: '1', name: 'スーパー三和町田店', address: '東京都町田市', isActive: true },
-        { id: '2', name: 'パークシティ横浜', address: '神奈川県横浜市', isActive: true },
-        { id: '3', name: 'アトリエうかい', address: '神奈川県横浜市', isActive: true }
+        { id: '1', name: 'スーパー三和町田店', address: '東京都町田市', isActive: true, scaffoldingDone: false, completedDate: null },
+        { id: '2', name: 'パークシティ横浜', address: '神奈川県横浜市', isActive: true, scaffoldingDone: false, completedDate: null },
+        { id: '3', name: 'アトリエうかい', address: '神奈川県横浜市', isActive: true, scaffoldingDone: false, completedDate: null }
       ]),
       records: Storage.get('records', []),
       corrections: Storage.get('corrections', []),
+      addressRequests: Storage.get('addressRequests', []),
+      deletedEmployees: Storage.get('deletedEmployees', []),
+      // 現場日報データ（日付_現場名をキーとして管理）
+      siteDailyReports: Storage.get('siteDailyReports', {}),
+      // 現場収支データ（現場ID_段階_月をキーとして管理）
+      // 段階: scaffolding(足場架け), completion(完工)
+      siteFinanceData: Storage.get('siteFinanceData', {}),
       gpsLocation: null,
       selectedDate: new Date().toISOString().split('T')[0],
+      selectedSiteDate: new Date().toISOString().split('T')[0],
+      historyMonth: null,
 
       save: function() {
         Storage.set('employees', this.employees);
         Storage.set('jobsites', this.jobSites);
         Storage.set('records', this.records);
         Storage.set('corrections', this.corrections);
+        Storage.set('addressRequests', this.addressRequests);
+        Storage.set('deletedEmployees', this.deletedEmployees);
+        Storage.set('siteDailyReports', this.siteDailyReports);
+        Storage.set('siteFinanceData', this.siteFinanceData);
+      },
+      
+      // 現場日報のキー生成
+      getSiteReportKey: function(date, siteName) {
+        return date + '_' + siteName;
+      },
+      
+      // 現場日報を取得
+      getSiteDailyReport: function(date, siteName) {
+        const key = this.getSiteReportKey(date, siteName);
+        return this.siteDailyReports[key] || {
+          vendorWorkers: 0,
+          contractAmount: 0,
+          truckCount: 0,
+          subcontractAmount: 0
+        };
+      },
+      
+      // 現場日報を保存
+      saveSiteDailyReport: function(date, siteName, data) {
+        const key = this.getSiteReportKey(date, siteName);
+        this.siteDailyReports[key] = data;
+        this.save();
+      },
+      
+      // 現場収支キー生成（現場ID_段階_月）
+      getSiteFinanceKey: function(siteId, phase, month) {
+        return siteId + '_' + phase + '_' + month;
+      },
+      
+      // 現場収支データを取得
+      getSiteFinance: function(siteId, phase, month) {
+        const key = this.getSiteFinanceKey(siteId, phase, month);
+        return this.siteFinanceData[key] || {
+          laborCost: 0,         // 人件費（追加分）
+          contractAmount: 0,    // 請負金額
+          subcontractAmount: 0, // 協力会社発注金額
+          truckCount: 0,        // トラック台数
+          additionalWorkers: 0, // 追加作業員数
+          materialCost: 0       // 材料費
+        };
+      },
+      
+      // 現場収支データを保存
+      saveSiteFinance: function(siteId, phase, month, data) {
+        const key = this.getSiteFinanceKey(siteId, phase, month);
+        this.siteFinanceData[key] = data;
+        this.save();
+      },
+      
+      // 現場の全月リストを取得
+      getSiteFinanceMonths: function(siteId, phase) {
+        const months = [];
+        Object.keys(this.siteFinanceData).forEach(key => {
+          if (key.startsWith(siteId + '_' + phase + '_')) {
+            const month = key.split('_')[2];
+            if (!months.includes(month)) months.push(month);
+          }
+        });
+        // 勤怠記録からも月を取得
+        const site = this.jobSites.find(s => s.id === siteId);
+        if (site) {
+          this.records.filter(r => r.jobSiteName === site.name).forEach(r => {
+            const month = r.workDate.slice(0, 7);
+            if (!months.includes(month)) months.push(month);
+          });
+        }
+        return months.sort();
+      },
+      
+      // 類似現場名をチェック（同じ漢字が2文字以上含まれていたら候補を返す）
+      findSimilarSite: function(inputName) {
+        if (!inputName || inputName.trim() === '') return null;
+        
+        const input = inputName.trim();
+        
+        // 入力から漢字を抽出
+        const inputKanji = input.match(/[\u4e00-\u9faf]/g) || [];
+        if (inputKanji.length < 2) return null; // 漢字2文字未満は対象外
+        
+        // 共通する漢字の数をカウント
+        function countCommonKanji(s1, s2) {
+          const kanji1 = s1.match(/[\u4e00-\u9faf]/g) || [];
+          const kanji2 = s2.match(/[\u4e00-\u9faf]/g) || [];
+          
+          if (kanji1.length === 0 || kanji2.length === 0) return 0;
+          
+          let commonCount = 0;
+          const used = new Array(kanji2.length).fill(false);
+          
+          for (let i = 0; i < kanji1.length; i++) {
+            for (let j = 0; j < kanji2.length; j++) {
+              if (!used[j] && kanji1[i] === kanji2[j]) {
+                commonCount++;
+                used[j] = true;
+                break;
+              }
+            }
+          }
+          return commonCount;
+        }
+        
+        // 既存の現場を順番にチェック（先に登録されたものが先に見つかる）
+        for (let i = 0; i < this.jobSites.length; i++) {
+          const site = this.jobSites[i];
+          // 完全一致は除外
+          if (site.name === input) continue;
+          
+          const commonCount = countCommonKanji(input, site.name);
+          if (commonCount >= 2) {
+            // 最初に見つかった（＝先に登録された）現場を返す
+            return site.name;
+          }
+        }
+        
+        return null;
       },
 
       getToday: function() {
@@ -917,9 +2817,81 @@
         return 'お疲れさまです';
       },
 
-      getTodayBySite: function() {
+      isHoliday: function(dateStr) {
+        return HOLIDAYS[dateStr] || null;
+      },
+
+      generateCalendar: function(year, month) {
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const startDayOfWeek = firstDay.getDay();
+        const daysInMonth = lastDay.getDate();
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        
+        // この月の出勤日を取得
+        const userId = this.currentUser ? this.currentUser.id : null;
+        const workedDates = {};
+        if (userId) {
+          this.records
+            .filter(r => r.employeeId === userId && r.workDate.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`))
+            .forEach(r => { workedDates[r.workDate] = true; });
+        }
+        
+        let html = '<div class="mini-calendar">';
+        html += `<div class="mini-calendar-header">${year}年${month + 1}月</div>`;
+        html += '<div class="mini-calendar-weekdays">';
+        ['日', '月', '火', '水', '木', '金', '土'].forEach((d, i) => {
+          const cls = i === 0 ? 'sunday' : (i === 6 ? 'saturday' : '');
+          html += `<span class="${cls}">${d}</span>`;
+        });
+        html += '</div>';
+        html += '<div class="mini-calendar-days">';
+        
+        // 前月の空白
+        for (let i = 0; i < startDayOfWeek; i++) {
+          html += '<span class="empty"></span>';
+        }
+        
+        // 日付
+        for (let day = 1; day <= daysInMonth; day++) {
+          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const date = new Date(year, month, day);
+          const dayOfWeek = date.getDay();
+          const isToday = dateStr === todayStr;
+          const isSunday = dayOfWeek === 0;
+          const isSaturday = dayOfWeek === 6;
+          const holiday = this.isHoliday(dateStr);
+          const worked = workedDates[dateStr];
+          
+          let cls = [];
+          if (isToday) cls.push('today');
+          if (isSunday || holiday) cls.push('holiday');
+          else if (isSaturday) cls.push('saturday');
+          if (worked) cls.push('worked');
+          
+          html += `<span class="${cls.join(' ')}" ${holiday ? 'title="' + holiday + '"' : ''}>${day}</span>`;
+        }
+        
+        html += '</div></div>';
+        return html;
+      },
+
+      // プライベート従業員（管理者のみ閲覧可）
+      PRIVATE_EMPLOYEE_IDS: ['8', '9'],  // 戸塚力、戸塚志保
+      
+      // 現場カウント除外リスト
+      EXCLUDED_SITES: ['営業', '内勤'],
+
+      getTodayBySite: function(includePrivate) {
         const today = this.getToday();
-        const todayRecords = this.records.filter(r => r.workDate === today);
+        let todayRecords = this.records.filter(r => r.workDate === today);
+        
+        // プライベート従業員をフィルタ（管理者以外の場合）
+        if (!includePrivate) {
+          todayRecords = todayRecords.filter(r => !this.PRIVATE_EMPLOYEE_IDS.includes(r.employeeId));
+        }
+        
         const bySite = {};
         todayRecords.forEach(r => {
           if (!bySite[r.jobSiteName]) {
@@ -935,6 +2907,13 @@
           });
         });
         return bySite;
+      },
+      
+      // 現場数カウント（営業・内勤を除外）
+      countActiveSites: function(bySite) {
+        return Object.keys(bySite).filter(name => 
+          !this.EXCLUDED_SITES.some(excluded => name.includes(excluded))
+        ).length;
       },
 
       getGPS: function(callback) {
@@ -976,7 +2955,7 @@
             <div class="logo-section">
               <div class="logo">🏗️</div>
               <h1 class="app-title">勤怠管理</h1>
-              <p class="app-subtitle">足場会社向け勤怠管理システム</p>
+              <p class="app-subtitle">東京架設</p>
             </div>
             <div>
               <div class="input-group">
@@ -1001,11 +2980,32 @@
         const completedRecords = todayRecords.filter(r => r.status === 'completed');
         const isWorking = !!workingRecord;
         
-        let statusHtml = '<p class="status-text">未出勤</p>';
+        // 今日の日付（曜日付き）
+        const today = new Date();
+        const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+        const todayStr = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日（${weekdays[today.getDay()]}）`;
+        
+        // カレンダー
+        const calendarHtml = App.generateCalendar(today.getFullYear(), today.getMonth());
+        
+        // 有給付与日
+        let paidLeaveHtml = '';
+        if (App.currentUser.paidLeaveDate) {
+          const paidDate = new Date(App.currentUser.paidLeaveDate);
+          const paidDateStr = `${paidDate.getFullYear()}年${paidDate.getMonth() + 1}月${paidDate.getDate()}日`;
+          const daysUntil = Math.ceil((paidDate - today) / (1000 * 60 * 60 * 24));
+          if (daysUntil > 0) {
+            paidLeaveHtml = `<div class="paid-leave-info">🎌 次回有給付与日: ${paidDateStr}（あと${daysUntil}日）</div>`;
+          } else if (daysUntil === 0) {
+            paidLeaveHtml = `<div class="paid-leave-info today">🎉 本日は有給付与日です！</div>`;
+          }
+        }
+        
+        let statusHtml = '<p class="status-text">未始業</p>';
         if (isWorking) {
           statusHtml = `
             <p class="status-text">🟢 勤務中</p>
-            <p class="status-detail">出勤: ${App.formatTime(workingRecord.clockInTime)}</p>
+            <p class="status-detail">始業: ${App.formatTime(workingRecord.clockInTime)}</p>
             <p class="status-detail">現場: ${workingRecord.jobSiteName}</p>
           `;
         } else if (completedRecords.length > 0) {
@@ -1013,6 +3013,7 @@
           const totalHours = completedRecords.reduce((sum, r) => sum + (r.workHours || 0), 0);
           statusHtml = `
             <p class="status-text">✅ 本日 ${completedRecords.length}回 勤務完了</p>
+            <p class="status-otsukare">お疲れさまでした！</p>
             <p class="status-detail">合計勤務時間: ${totalHours.toFixed(1)}時間</p>
             <p class="status-detail">最終: ${App.formatTime(lastRecord.clockInTime)} 〜 ${App.formatTime(lastRecord.clockOutTime)}</p>
             <p class="status-detail">現場: ${lastRecord.jobSiteName}</p>
@@ -1037,12 +3038,131 @@
           todayHistoryHtml += '</div>';
         }
 
+        // アルバイト向け休憩案内
+        let breakInfoHtml = '';
+        if (App.currentUser.role === 'parttime') {
+          // 年初からの累計計算
+          const currentYear = new Date().getFullYear();
+          const yearStart = currentYear + '-01-01';
+          const yearRecords = App.records.filter(r => 
+            r.employeeId === App.currentUser.id && 
+            r.workDate >= yearStart && 
+            r.status === 'completed'
+          );
+          
+          // 法定休憩を引いた実働時間を計算
+          function getBreakHours(workHours) {
+            if (workHours <= 6) return 0;
+            if (workHours <= 8) return 0.75;
+            return 1;
+          }
+          
+          let totalActualHours = 0;
+          let estimatedIncome = 0;
+          const currentHourlyRate = App.currentUser.hourlyRate || 1200;
+          
+          yearRecords.forEach(r => {
+            const workHours = r.workHours || 0;
+            const breakHours = getBreakHours(workHours);
+            const actualHours = Math.max(0, workHours - breakHours);
+            totalActualHours += actualHours;
+            // 記録に時給がある場合はそれを使う（なければ現在の時給）
+            const recordRate = r.hourlyRate || currentHourlyRate;
+            estimatedIncome += Math.round(actualHours * recordRate);
+          });
+          
+          breakInfoHtml = `
+            <div class="income-tracker-card">
+              <h3 class="income-tracker-title">💰 ${currentYear}年 収入状況</h3>
+              <div class="income-tracker-main">
+                <div class="income-tracker-item">
+                  <span class="income-tracker-label">累計実働時間</span>
+                  <span class="income-tracker-value">${totalActualHours.toFixed(1)}時間</span>
+                </div>
+                <div class="income-tracker-item highlight">
+                  <span class="income-tracker-label">年収見込み</span>
+                  <span class="income-tracker-value">¥${estimatedIncome.toLocaleString()}</span>
+                </div>
+              </div>
+              <p class="income-tracker-note">※ 各勤務の時給 × 実働時間（現在の時給: ¥${currentHourlyRate.toLocaleString()}）</p>
+            </div>
+            
+            <div class="income-wall-card">
+              <h3 class="income-wall-title">📊 年収の壁（2025年〜）</h3>
+              <p class="income-wall-subtitle">出典: 国税庁・厚生労働省</p>
+              <div class="income-wall-table">
+                <div class="income-wall-row ${estimatedIncome < 1060000 ? 'safe' : 'over'}">
+                  <div class="income-wall-left">
+                    <span class="income-wall-amount">106万円</span>
+                    <span class="income-wall-type">社会保険</span>
+                  </div>
+                  <div class="income-wall-right">
+                    <span class="income-wall-desc">従業員51人以上の企業で週20時間以上勤務の場合、社会保険加入義務が発生</span>
+                  </div>
+                </div>
+                <div class="income-wall-row ${estimatedIncome < 1230000 ? 'safe' : 'over'}">
+                  <div class="income-wall-left">
+                    <span class="income-wall-amount">123万円</span>
+                    <span class="income-wall-type">税制（扶養）</span>
+                  </div>
+                  <div class="income-wall-right">
+                    <span class="income-wall-desc">配偶者控除・扶養控除の上限（2025年〜）</span>
+                  </div>
+                </div>
+                <div class="income-wall-row ${estimatedIncome < 1300000 ? 'safe' : 'over'}">
+                  <div class="income-wall-left">
+                    <span class="income-wall-amount">130万円</span>
+                    <span class="income-wall-type">社会保険</span>
+                  </div>
+                  <div class="income-wall-right">
+                    <span class="income-wall-desc">社会保険の扶養から外れる（国保・国民年金加入）</span>
+                  </div>
+                </div>
+                <div class="income-wall-row ${estimatedIncome < 1600000 ? 'safe' : 'over'}">
+                  <div class="income-wall-left">
+                    <span class="income-wall-amount">160万円</span>
+                    <span class="income-wall-type">所得税</span>
+                  </div>
+                  <div class="income-wall-right">
+                    <span class="income-wall-desc">所得税が発生（基礎控除95万+給与所得控除65万）</span>
+                  </div>
+                </div>
+              </div>
+              <p class="income-wall-footer">※ 制度は変更される場合があります。詳細は各機関へご確認ください</p>
+            </div>
+            
+            <div class="break-info-card">
+              <h3 class="break-info-title">⏰ 休憩時間の目安（法定）</h3>
+              <div class="break-info-table">
+                <div class="break-info-row">
+                  <span>6時間以下</span>
+                  <span>休憩なし</span>
+                </div>
+                <div class="break-info-row">
+                  <span>6時間超〜8時間</span>
+                  <span>45分以上</span>
+                </div>
+                <div class="break-info-row">
+                  <span>8時間超</span>
+                  <span>60分以上</span>
+                </div>
+              </div>
+              <p class="break-info-note">※ 給与計算時は上記の休憩時間を引いた実働時間で計算されます</p>
+            </div>
+          `;
+        }
+
         return `
           <div class="header">
             <button id="logoutBtn" class="menu-btn">ログアウト</button>
-            <span class="date-text">${App.formatDate(App.getToday())}</span>
+            <span class="date-text">${todayStr}</span>
+            <button id="toggleCalendarBtn" class="calendar-toggle-btn">📅</button>
+          </div>
+          <div id="calendarPopup" class="calendar-popup hidden">
+            ${calendarHtml}
           </div>
           <div class="home-content">
+            ${paidLeaveHtml}
             <div class="greeting">
               <p class="greeting-text">${App.getGreeting()}</p>
               <h2 class="user-name">${App.currentUser.name} さん</h2>
@@ -1058,22 +3178,26 @@
                 <span>退 勤</span>
               </button>
             </div>
+            <p class="gps-notice">📍 位置情報は打刻時のみ取得・記録されます</p>
             <div class="status-card">
               <h3 class="status-title">本日の状態</h3>
               ${statusHtml}
             </div>
+            ${breakInfoHtml}
             ${todayHistoryHtml}
-            <button id="historyBtn" class="history-btn">📋 勤怠履歴を見る</button>
+            <div class="home-buttons">
+              <button id="historyBtn" class="history-btn">📋 勤怠履歴を見る</button>
+              <button id="settingsBtn" class="settings-btn">⚙️ 設定・各種届出</button>
+            </div>
           </div>
         `;
       },
 
       clockIn: function() {
-        let siteOptions = '<option value="">-- 現場を選択 --</option>';
+        let siteOptions = '<option value="">-- 既存の現場から選ぶ --</option>';
         App.jobSites.filter(s => s.isActive).forEach(site => {
           siteOptions += `<option value="${site.id}">${site.name}</option>`;
         });
-        siteOptions += '<option value="custom">その他（手入力）</option>';
 
         let gpsHtml = '<p class="gps-loading">位置情報を取得中...</p>';
         if (App.gpsLocation) {
@@ -1084,13 +3208,14 @@
               <p>精度: ±${Math.round(App.gpsLocation.accuracy)}m</p>
               ${App.gpsLocation.isDemo ? '<p class="demo-text">（デモデータ）</p>' : ''}
             </div>
+            <div id="clockInMap" class="map-container"></div>
           `;
         }
 
         return `
           <div class="header">
             <button id="backBtn" class="back-btn">← 戻る</button>
-            <span class="header-title">出勤打刻</span>
+            <span class="header-title">始業打刻</span>
           </div>
           <div class="form-content">
             <div class="info-row">
@@ -1104,13 +3229,18 @@
             <div class="divider"></div>
             <p class="section-title">現場を選択してください</p>
             <select id="jobSiteSelect" class="form-select">${siteOptions}</select>
-            <input type="text" id="customJobSite" class="form-input hidden" placeholder="現場名を入力">
+            <div class="or-divider">
+              <span>または</span>
+            </div>
+            <p class="section-title">🆕 新しい現場を入力</p>
+            <input type="text" id="customJobSite" class="form-input" placeholder="例: ○○マンション新築工事">
+            <p class="input-hint">※ 入力した現場は次回から選択肢に追加されます</p>
             <div class="divider"></div>
             <div class="gps-section">
               <p class="section-title">📍 現在地</p>
               <div id="gpsInfo">${gpsHtml}</div>
             </div>
-            <button id="confirmClockIn" class="confirm-btn" disabled>出勤を確定</button>
+            <button id="confirmClockIn" class="confirm-btn" disabled>始業を確定</button>
           </div>
         `;
       },
@@ -1124,13 +3254,14 @@
               <p>緯度: ${App.gpsLocation.lat.toFixed(4)}</p>
               <p>経度: ${App.gpsLocation.lng.toFixed(4)}</p>
             </div>
+            <div id="clockOutMap" class="map-container"></div>
           `;
         }
 
         return `
           <div class="header">
             <button id="backBtn" class="back-btn">← 戻る</button>
-            <span class="header-title">退勤打刻</span>
+            <span class="header-title">終業打刻</span>
           </div>
           <div class="form-content">
             <div class="info-row">
@@ -1142,7 +3273,7 @@
               <span class="info-value">${record ? record.jobSiteName : ''}</span>
             </div>
             <div class="info-row">
-              <span class="info-label">出勤時刻</span>
+              <span class="info-label">始業時刻</span>
               <span class="info-value">${record ? App.formatTime(record.clockInTime) : ''}</span>
             </div>
             <div class="info-row">
@@ -1156,25 +3287,144 @@
               <p class="section-title">📍 現在地</p>
               <div id="gpsInfo">${gpsHtml}</div>
             </div>
-            <button id="confirmClockOut" class="confirm-btn">退勤を確定</button>
+            <button id="confirmClockOut" class="confirm-btn">終業を確定</button>
+          </div>
+        `;
+      },
+
+      settings: function() {
+        return `
+          <div class="header">
+            <button id="backBtn" class="back-btn">← 戻る</button>
+            <span class="header-title">設定・各種届出</span>
+          </div>
+          <div class="list-content">
+            <div class="settings-section">
+              <h3 class="settings-section-title">アカウント設定</h3>
+              
+              <div class="settings-card">
+                <h4 class="settings-card-title">🆔 ID変更</h4>
+                <p class="settings-card-desc">現在のID: ${App.currentUser.id}</p>
+                <div class="settings-input-group">
+                  <input type="text" id="newIdInput" class="settings-input" placeholder="新しいID">
+                  <button id="changeIdBtn" class="settings-save-btn">変更</button>
+                </div>
+              </div>
+              
+              <div class="settings-card">
+                <h4 class="settings-card-title">🔑 パスワード変更</h4>
+                <div class="settings-input-group">
+                  <input type="password" id="currentPasswordInput" class="settings-input" placeholder="現在のパスワード">
+                </div>
+                <div class="settings-input-group">
+                  <input type="password" id="newPasswordInput" class="settings-input" placeholder="新しいパスワード">
+                </div>
+                <div class="settings-input-group">
+                  <input type="password" id="confirmPasswordInput" class="settings-input" placeholder="新しいパスワード（確認）">
+                  <button id="changePasswordBtn" class="settings-save-btn">変更</button>
+                </div>
+              </div>
+            </div>
+            
+            <div class="settings-section">
+              <h3 class="settings-section-title">届出</h3>
+              
+              <div class="settings-card">
+                <h4 class="settings-card-title">🏠 住所変更届</h4>
+                <p class="settings-card-desc">住所が変わった場合はこちらから届出してください</p>
+                <div class="settings-input-group">
+                  <input type="text" id="newAddressInput" class="settings-input" placeholder="新しい住所を入力">
+                  <button id="submitAddressBtn" class="settings-save-btn">届出</button>
+                </div>
+                <p class="settings-card-note">※ 届出内容は管理者が確認後、削除されます</p>
+              </div>
+            </div>
+          </div>
+        `;
+      },
+
+      adminSettings: function() {
+        const backView = App.currentUser.role === 'admin' ? 'admin' : 'subadmin';
+        return `
+          <div class="header">
+            <button id="backBtn" class="back-btn">← 戻る</button>
+            <span class="header-title">ID・パスワード変更</span>
+          </div>
+          <div class="list-content">
+            <div class="settings-section">
+              <h3 class="settings-section-title">アカウント設定</h3>
+              
+              <div class="settings-card">
+                <h4 class="settings-card-title">🆔 ID変更</h4>
+                <p class="settings-card-desc">現在のID: ${App.currentUser.id}</p>
+                <div class="settings-input-group">
+                  <input type="text" id="newIdInput" class="settings-input" placeholder="新しいID">
+                  <button id="changeIdBtn" class="settings-save-btn">変更</button>
+                </div>
+              </div>
+              
+              <div class="settings-card">
+                <h4 class="settings-card-title">🔑 パスワード変更</h4>
+                <div class="settings-input-group">
+                  <input type="password" id="currentPasswordInput" class="settings-input" placeholder="現在のパスワード">
+                </div>
+                <div class="settings-input-group">
+                  <input type="password" id="newPasswordInput" class="settings-input" placeholder="新しいパスワード">
+                </div>
+                <div class="settings-input-group">
+                  <input type="password" id="confirmPasswordInput" class="settings-input" placeholder="新しいパスワード（確認）">
+                  <button id="changePasswordBtn" class="settings-save-btn">変更</button>
+                </div>
+              </div>
+            </div>
           </div>
         `;
       },
 
       history: function() {
-        const records = App.records
-          .filter(r => r.employeeId === App.currentUser.id)
+        // 選択中の月（デフォルトは今月）
+        const selectedMonth = App.historyMonth || new Date().toISOString().slice(0, 7);
+        
+        // この従業員の全記録から月のリストを作成
+        const allRecords = App.records.filter(r => r.employeeId === App.currentUser.id);
+        const months = [...new Set(allRecords.map(r => r.workDate.slice(0, 7)))].sort().reverse();
+        
+        // 今月がリストになければ追加
+        const currentMonth = new Date().toISOString().slice(0, 7);
+        if (!months.includes(currentMonth)) {
+          months.unshift(currentMonth);
+        }
+        
+        // 選択月の記録
+        const records = allRecords
+          .filter(r => r.workDate.startsWith(selectedMonth))
           .sort((a, b) => new Date(b.workDate) - new Date(a.workDate));
+        
+        // 月選択セレクトボックス
+        let monthOptions = '';
+        months.forEach(m => {
+          const [y, mo] = m.split('-');
+          const label = `${y}年${parseInt(mo)}月`;
+          monthOptions += `<option value="${m}" ${m === selectedMonth ? 'selected' : ''}>${label}</option>`;
+        });
+        
+        // 月の集計
+        const completedRecords = records.filter(r => r.status === 'completed');
+        const totalDays = completedRecords.length;
+        const totalHours = completedRecords.reduce((sum, r) => sum + (r.workHours || 0), 0);
         
         let recordsHtml = '';
         if (records.length === 0) {
-          recordsHtml = '<p class="empty-text">勤怠記録がありません</p>';
+          recordsHtml = '<p class="empty-text">この月の勤怠記録がありません</p>';
         } else {
           records.forEach(r => {
+            const date = new Date(r.workDate);
+            const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+            const dateStr = `${date.getMonth() + 1}/${date.getDate()}（${weekdays[date.getDay()]}）`;
             recordsHtml += `
               <div class="record-card">
                 <div class="record-header">
-                  <span class="record-date">${App.formatDate(r.workDate)}</span>
+                  <span class="record-date">${dateStr}</span>
                   <span class="record-status ${r.status}">${r.status === 'working' ? '勤務中' : '完了'}</span>
                 </div>
                 <p class="record-site">🏗️ ${r.jobSiteName}</p>
@@ -1190,40 +3440,45 @@
             <button id="backBtn" class="back-btn">← 戻る</button>
             <span class="header-title">勤怠履歴</span>
           </div>
-          <div class="list-content">${recordsHtml}</div>
+          <div class="list-content">
+            <div class="month-selector">
+              <select id="historyMonthSelect" class="month-select">
+                ${monthOptions}
+              </select>
+            </div>
+            <div class="month-summary">
+              <div class="month-summary-item">
+                <span class="month-summary-label">始業日数</span>
+                <span class="month-summary-value">${totalDays}日</span>
+              </div>
+              <div class="month-summary-item">
+                <span class="month-summary-label">合計勤務時間</span>
+                <span class="month-summary-value">${totalHours.toFixed(1)}時間</span>
+              </div>
+            </div>
+            ${recordsHtml}
+          </div>
         `;
       },
 
       admin: function() {
-        const bySite = App.getTodayBySite();
+        const bySite = App.getTodayBySite(true); // 管理者は全員表示
         const siteNames = Object.keys(bySite);
         let totalWorkers = 0;
         siteNames.forEach(name => { totalWorkers += bySite[name].total; });
+        
+        // 現場数（営業・内勤を除く）
+        const activeSiteCount = App.countActiveSites(bySite);
 
         // 未処理の修正依頼数
         const pendingCorrections = App.corrections.filter(c => c.status === 'pending').length;
 
-        let sitesHtml = '';
-        if (siteNames.length === 0) {
-          sitesHtml = '<p class="empty-text">本日の出勤者はまだいません</p>';
-        } else {
-          siteNames.forEach(name => {
-            const data = bySite[name];
-            let workersHtml = '';
-            data.workers.forEach(w => {
-              workersHtml += `<span class="worker-tag ${w.status}">${w.name}</span>`;
-            });
-            sitesHtml += `
-              <div class="site-card">
-                <div class="site-header">
-                  <span class="site-name">🏗️ ${name}</span>
-                  <span class="site-count">${data.total}名（稼働中: ${data.working}名）</span>
-                </div>
-                <div class="worker-list">${workersHtml}</div>
-              </div>
-            `;
-          });
-        }
+        // 今日の自分の勤怠（管理者も出退勤可能に）
+        const myTodayRecords = App.records.filter(r => 
+          r.employeeId === App.currentUser.id && 
+          r.workDate === App.getToday()
+        );
+        const isWorking = myTodayRecords.some(r => r.status === 'working');
 
         return `
           <div class="header">
@@ -1232,34 +3487,51 @@
           </div>
           <div class="admin-content">
             <p class="admin-date">${App.formatDate(App.getToday())}</p>
+            
+            <div class="admin-clockin-section">
+              <p class="admin-greeting">${App.currentUser.name} さん</p>
+              <div class="admin-buttons">
+                <button id="adminClockIn" class="admin-btn clock-in" ${isWorking ? 'disabled' : ''}>
+                  🌅 始業
+                </button>
+                <button id="adminClockOut" class="admin-btn clock-out" ${!isWorking ? 'disabled' : ''}>
+                  🌆 終業
+                </button>
+              </div>
+            </div>
+            
             <div class="stats-container">
               <div class="stat-card">
                 <span class="stat-number">${totalWorkers}</span>
-                <span class="stat-label">本日出勤</span>
+                <span class="stat-label">本日勤務人数</span>
               </div>
               <div class="stat-card">
-                <span class="stat-number">${siteNames.length}</span>
-                <span class="stat-label">現場稼働</span>
+                <span class="stat-number">${activeSiteCount}</span>
+                <span class="stat-label">稼働現場数</span>
               </div>
               <div class="stat-card ${pendingCorrections > 0 ? 'alert' : ''}">
                 <span class="stat-number">${pendingCorrections}</span>
-                <span class="stat-label">修正依頼</span>
+                <span class="stat-label">編集依頼</span>
               </div>
             </div>
-            <div class="section-header">
-              <h3 class="section-title">現場別状況</h3>
-            </div>
-            ${sitesHtml}
             <div class="menu-section">
               <h3 class="section-title">メニュー</h3>
               <div class="menu-grid">
                 <button class="menu-card" data-view="dailyList">
                   <span class="menu-icon">📅</span>
-                  <span>日別勤怠一覧</span>
+                  <span>出勤一覧</span>
                 </button>
                 <button class="menu-card" data-view="siteList">
                   <span class="menu-icon">🏗️</span>
-                  <span>現場別一覧</span>
+                  <span>稼働現場一覧</span>
+                </button>
+                <button class="menu-card" data-view="completedSiteList">
+                  <span class="menu-icon">✅</span>
+                  <span>終了現場</span>
+                </button>
+                <button class="menu-card" data-view="siteFinance">
+                  <span class="menu-icon">💰</span>
+                  <span>各現場収支</span>
                 </button>
                 <button class="menu-card" data-view="employeeMaster">
                   <span class="menu-icon">👤</span>
@@ -1271,88 +3543,571 @@
                 </button>
                 <button class="menu-card ${pendingCorrections > 0 ? 'has-alert' : ''}" data-view="correctionList">
                   <span class="menu-icon">📝</span>
-                  <span>修正依頼${pendingCorrections > 0 ? '（' + pendingCorrections + '件）' : ''}</span>
+                  <span>出退勤誤入力編集依頼${pendingCorrections > 0 ? '（' + pendingCorrections + '件）' : ''}</span>
+                </button>
+                <button class="menu-card ${App.addressRequests.length > 0 ? 'has-alert' : ''}" data-view="addressRequestList">
+                  <span class="menu-icon">🏠</span>
+                  <span>住所変更届${App.addressRequests.length > 0 ? '（' + App.addressRequests.length + '件）' : ''}</span>
+                </button>
+                <button class="menu-card" data-view="csvExport">
+                  <span class="menu-icon">📊</span>
+                  <span>CSVエクスポート</span>
                 </button>
               </div>
+              <button class="menu-card-wide" data-view="adminSettings">
+                <span class="menu-icon">⚙️</span>
+                <span>ID・パスワード変更</span>
+              </button>
+            </div>
+          </div>
+        `;
+      },
+
+      subadmin: function() {
+        const bySite = App.getTodayBySite(false); // 副管理者はプライベート除外
+        const siteNames = Object.keys(bySite);
+        let totalWorkers = 0;
+        siteNames.forEach(name => { totalWorkers += bySite[name].total; });
+        
+        // 現場数（営業・内勤を除く）
+        const activeSiteCount = App.countActiveSites(bySite);
+
+        // 未処理の修正依頼数
+        const pendingCorrections = App.corrections.filter(c => c.status === 'pending').length;
+
+        // 今日の自分の勤怠
+        const myTodayRecords = App.records.filter(r => 
+          r.employeeId === App.currentUser.id && 
+          r.workDate === App.getToday()
+        );
+        const isWorking = myTodayRecords.some(r => r.status === 'working');
+
+        return `
+          <div class="header">
+            <button id="logoutBtn" class="menu-btn">ログアウト</button>
+            <span class="header-title">管理者（副）メニュー</span>
+          </div>
+          <div class="admin-content">
+            <p class="admin-date">${App.formatDate(App.getToday())}</p>
+            
+            <div class="subadmin-clockin-section">
+              <p class="subadmin-greeting">${App.currentUser.name} さん</p>
+              <div class="subadmin-buttons">
+                <button id="subadminClockIn" class="subadmin-btn clock-in" ${isWorking ? 'disabled' : ''}>
+                  🌅 始業
+                </button>
+                <button id="subadminClockOut" class="subadmin-btn clock-out" ${!isWorking ? 'disabled' : ''}>
+                  🌆 終業
+                </button>
+              </div>
+            </div>
+            
+            <div class="stats-container">
+              <div class="stat-card">
+                <span class="stat-number">${totalWorkers}</span>
+                <span class="stat-label">本日勤務人数</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-number">${activeSiteCount}</span>
+                <span class="stat-label">稼働現場数</span>
+              </div>
+              <div class="stat-card ${pendingCorrections > 0 ? 'alert' : ''}">
+                <span class="stat-number">${pendingCorrections}</span>
+                <span class="stat-label">編集依頼</span>
+              </div>
+            </div>
+            <div class="menu-section">
+              <h3 class="section-title">メニュー</h3>
+              <div class="menu-grid">
+                <button class="menu-card" data-view="dailyList">
+                  <span class="menu-icon">📅</span>
+                  <span>出勤一覧</span>
+                </button>
+                <button class="menu-card" data-view="siteList">
+                  <span class="menu-icon">🏗️</span>
+                  <span>稼働現場一覧</span>
+                </button>
+                <button class="menu-card" data-view="completedSiteList">
+                  <span class="menu-icon">✅</span>
+                  <span>終了現場</span>
+                </button>
+                <button class="menu-card" data-view="siteFinance">
+                  <span class="menu-icon">💰</span>
+                  <span>各現場収支</span>
+                </button>
+                <button class="menu-card ${pendingCorrections > 0 ? 'has-alert' : ''}" data-view="correctionList">
+                  <span class="menu-icon">📝</span>
+                  <span>出退勤誤入力編集依頼${pendingCorrections > 0 ? '（' + pendingCorrections + '件）' : ''}</span>
+                </button>
+                <button class="menu-card" data-view="csvExport">
+                  <span class="menu-icon">📊</span>
+                  <span>CSVエクスポート</span>
+                </button>
+              </div>
+              <button class="menu-card-wide" data-view="adminSettings">
+                <span class="menu-icon">⚙️</span>
+                <span>ID・パスワード変更</span>
+              </button>
             </div>
           </div>
         `;
       },
 
       dailyList: function() {
-        const records = App.records.filter(r => r.workDate === App.selectedDate);
-        let recordsHtml = '';
-        if (records.length === 0) {
-          recordsHtml = '<p class="empty-text">この日の記録はありません</p>';
-        } else {
-          records.forEach(r => {
-            recordsHtml += `
-              <div class="record-card">
-                <div class="record-header">
-                  <span class="record-name">${r.employeeName}</span>
-                  <span class="record-status ${r.status}">${r.status === 'working' ? '勤務中' : '完了'}</span>
-                </div>
-                <p class="record-site">🏗️ ${r.jobSiteName}</p>
-                <p class="record-time">${App.formatTime(r.clockInTime)} 〜 ${App.formatTime(r.clockOutTime)}${r.workHours ? ' （' + r.workHours.toFixed(1) + 'h）' : ''}</p>
+        // プライベート従業員を除外するかどうか
+        const isAdmin = App.currentUser.role === 'admin';
+        let records = App.records.filter(r => r.workDate === App.selectedDate);
+        
+        // 副管理者の場合はプライベート従業員を除外
+        if (!isAdmin) {
+          records = records.filter(r => !App.PRIVATE_EMPLOYEE_IDS.includes(r.employeeId));
+        }
+        
+        // 全従業員の出勤状況を作成（管理者も含む）
+        let activeEmployees = App.employees.filter(e => e.isActive);
+        if (!isAdmin) {
+          activeEmployees = activeEmployees.filter(e => !App.PRIVATE_EMPLOYEE_IDS.includes(e.id));
+        }
+        
+        let gridHtml = '<div class="attendance-grid">';
+        activeEmployees.forEach(emp => {
+          const empRecords = records.filter(r => r.employeeId === emp.id);
+          const hasRecord = empRecords.length > 0;
+          
+          if (!hasRecord) {
+            // 未始業
+            gridHtml += `
+              <div class="attendance-cell absent">
+                <span class="attendance-name">${emp.name}</span>
+                <span class="attendance-mark">✕</span>
               </div>
             `;
-          });
-        }
+          } else {
+            // 出勤あり - 各記録をマークとして表示
+            let marksHtml = '';
+            let allCompleted = true;
+            empRecords.forEach((r, idx) => {
+              const isNight = r.shiftType === 'night';
+              const isCompleted = r.status === 'completed';
+              if (!isCompleted) allCompleted = false;
+              const markClass = isCompleted ? 'completed' : 'working';
+              marksHtml += `
+                <span class="attendance-mark-item ${markClass}" data-record-id="${r.id}">
+                  <span class="mark-circle">◯</span>
+                  <span class="mark-shift">${isNight ? '夜' : '昼'}</span>
+                  ${isCompleted ? '<span class="mark-done">終了</span>' : ''}
+                </span>
+              `;
+            });
+            
+            // 最新の現場名を短縮表示
+            const latestRecord = empRecords[empRecords.length - 1];
+            const siteName = latestRecord.jobSiteName;
+            const shortSiteName = siteName.length > 6 ? siteName.substring(0, 6) + '…' : siteName;
+            
+            gridHtml += `
+              <div class="attendance-cell present ${allCompleted ? 'all-completed' : ''}" data-emp-id="${emp.id}">
+                <span class="attendance-name">${emp.name}</span>
+                <div class="attendance-marks">${marksHtml}</div>
+                <span class="attendance-site">${shortSiteName}</span>
+              </div>
+            `;
+          }
+        });
+        gridHtml += '</div>';
+        
+        // 始業者数
+        const presentCount = activeEmployees.filter(emp => 
+          records.some(r => r.employeeId === emp.id)
+        ).length;
 
         return `
           <div class="header">
             <button id="backBtn" class="back-btn">← 戻る</button>
-            <span class="header-title">日別勤怠一覧</span>
+            <span class="header-title">出勤一覧</span>
           </div>
           <div class="list-content">
             <input type="date" id="dateSelect" class="date-input" value="${App.selectedDate}">
-            <p class="date-label">${App.formatDate(App.selectedDate)} の勤怠</p>
-            ${recordsHtml}
+            <div class="attendance-summary">
+              <span class="attendance-date">${App.formatDate(App.selectedDate)}</span>
+              <span class="attendance-count">始業: ${presentCount}/${activeEmployees.length}名</span>
+            </div>
+            ${gridHtml}
+          </div>
+          <div id="attendanceDetailModal" class="attendance-detail-modal hidden">
+            <div class="attendance-detail-content">
+              <button class="attendance-detail-close" id="closeDetailModal">✕</button>
+              <div id="attendanceDetailBody"></div>
+            </div>
+          </div>
+          <div id="mapModal" class="map-modal hidden">
+            <div class="map-modal-header">
+              <span class="map-modal-title" id="mapModalTitle">打刻場所</span>
+              <button class="map-modal-close" id="closeMapModal">✕</button>
+            </div>
+            <div class="map-modal-body">
+              <div id="modalMap"></div>
+            </div>
+            <div class="map-info" id="mapModalInfo"></div>
           </div>
         `;
       },
 
       siteList: function() {
-        const bySite = App.getTodayBySite();
-        const siteNames = Object.keys(bySite);
+        const selectedDate = App.selectedSiteDate;
+        const isAdmin = App.currentUser.role === 'admin';
         
-        let sitesHtml = '';
-        if (siteNames.length === 0) {
-          sitesHtml = '<p class="empty-text">本日の出勤者はまだいません</p>';
+        // 選択日の記録を取得
+        let dayRecords = App.records.filter(r => r.workDate === selectedDate);
+        if (!isAdmin) {
+          dayRecords = dayRecords.filter(r => !App.PRIVATE_EMPLOYEE_IDS.includes(r.employeeId));
+        }
+        
+        // 現場ごとにグループ化
+        const bySite = {};
+        dayRecords.forEach(r => {
+          if (!bySite[r.jobSiteName]) {
+            bySite[r.jobSiteName] = { total: 0, working: 0, workers: [] };
+          }
+          bySite[r.jobSiteName].total++;
+          if (r.status === 'working') bySite[r.jobSiteName].working++;
+          bySite[r.jobSiteName].workers.push({
+            name: r.employeeName,
+            status: r.status,
+            clockIn: r.clockInTime,
+            clockOut: r.clockOutTime
+          });
+        });
+        
+        // 稼働中現場と終了現場を分ける（営業・内勤は除外）
+        const activeSites = App.jobSites.filter(s => 
+          s.isActive && !s.completedDate && !App.EXCLUDED_SITES.some(ex => s.name.includes(ex))
+        );
+        const completedSites = App.jobSites.filter(s => 
+          s.isActive && s.completedDate && !App.EXCLUDED_SITES.some(ex => s.name.includes(ex))
+        );
+        
+        // 稼働中現場グリッドHTML
+        let activeGridHtml = '<div class="site-grid">';
+        if (activeSites.length === 0) {
+          activeGridHtml += '<p class="empty-text">稼働中の現場はありません</p>';
         } else {
-          siteNames.forEach(name => {
-            const data = bySite[name];
-            let workersHtml = '';
-            data.workers.forEach(w => {
-              workersHtml += `
-                <div class="worker-detail-row">
-                  <span>${w.name}</span>
-                  <span>${App.formatTime(w.clockIn)} 〜 ${App.formatTime(w.clockOut)}</span>
-                  <span style="color: ${w.status === 'working' ? '#48bb78' : '#718096'}">${w.status === 'working' ? '勤務中' : '退勤済'}</span>
-                </div>
-              `;
-            });
-            sitesHtml += `
-              <div class="site-detail-card">
-                <h3 class="site-detail-name">🏗️ ${name}</h3>
-                <div class="site-stats">
-                  <span>出勤: ${data.total}名</span>
-                  <span>現場中: ${data.working}名</span>
-                </div>
-                <div class="worker-detail-list">${workersHtml}</div>
+          activeSites.forEach(site => {
+            const data = bySite[site.name];
+            const hasWorkers = data && data.total > 0;
+            const allCompleted = hasWorkers && data.working === 0;
+            
+            activeGridHtml += `
+              <div class="site-cell ${hasWorkers ? 'active' : 'inactive'} ${allCompleted ? 'all-completed' : ''}" 
+                   data-site-name="${site.name}" data-site-id="${site.id}">
+                <span class="site-cell-name">${site.name}</span>
+                <span class="site-cell-mark">${hasWorkers ? '◯' : '✕'}</span>
+                ${hasWorkers ? `<span class="site-cell-count">${data.total}名</span>` : ''}
+                ${site.scaffoldingDone ? '<span class="site-scaffolding-badge">架け済</span>' : ''}
               </div>
             `;
           });
+        }
+        activeGridHtml += '</div>';
+        
+        // 稼働現場数（営業・内勤除く、完工除く）
+        const activeSiteCount = Object.keys(bySite).filter(name => {
+          const site = App.jobSites.find(s => s.name === name);
+          return !App.EXCLUDED_SITES.some(ex => name.includes(ex)) && site && !site.completedDate;
+        }).length;
+
+        return `
+          <div class="header">
+            <button id="backBtn" class="back-btn">← 戻る</button>
+            <span class="header-title">稼働現場一覧</span>
+          </div>
+          <div class="list-content">
+            <input type="date" id="siteDateSelect" class="date-input" value="${selectedDate}">
+            <div class="attendance-summary">
+              <span class="attendance-date">${App.formatDate(selectedDate)}</span>
+              <span class="attendance-count">稼働現場: ${activeSiteCount}件</span>
+            </div>
+            
+            <div class="site-section">
+              <h3 class="site-section-title">🏗️ 稼働中現場（${activeSites.length}件）</h3>
+              ${activeGridHtml}
+            </div>
+          </div>
+          <div id="siteDetailModal" class="site-detail-modal hidden">
+            <div class="site-detail-modal-content">
+              <button class="site-detail-modal-close" id="closeSiteDetailModal">✕</button>
+              <div id="siteDetailBody"></div>
+            </div>
+          </div>
+        `;
+      },
+
+      completedSiteList: function() {
+        // 終了現場（営業・内勤除外）
+        const completedSites = App.jobSites.filter(s => 
+          s.isActive && s.completedDate && !App.EXCLUDED_SITES.some(ex => s.name.includes(ex))
+        );
+        
+        let gridHtml = '<div class="site-grid">';
+        if (completedSites.length === 0) {
+          gridHtml = '<p class="empty-text">終了した現場はありません</p>';
+        } else {
+          completedSites.forEach(site => {
+            gridHtml += `
+              <div class="site-cell completed-site" data-site-id="${site.id}" data-site-name="${site.name}">
+                <span class="site-cell-name">${site.name}</span>
+                <span class="site-cell-mark">✓</span>
+                <span class="site-cell-date">${site.completedDate}</span>
+              </div>
+            `;
+          });
+          gridHtml += '</div>';
         }
 
         return `
           <div class="header">
             <button id="backBtn" class="back-btn">← 戻る</button>
-            <span class="header-title">現場別一覧</span>
+            <span class="header-title">終了現場</span>
           </div>
           <div class="list-content">
-            <p class="date-label">${App.formatDate(App.getToday())} の現場別状況</p>
-            ${sitesHtml}
+            <div class="attendance-summary">
+              <span class="attendance-count">終了現場: ${completedSites.length}件</span>
+            </div>
+            ${gridHtml}
+          </div>
+          <div id="siteDetailModal" class="site-detail-modal hidden">
+            <div class="site-detail-modal-content">
+              <button class="site-detail-modal-close" id="closeSiteDetailModal">✕</button>
+              <div id="siteDetailBody"></div>
+            </div>
+          </div>
+        `;
+      },
+
+      siteFinance: function() {
+        // 全現場（営業・内勤除外）
+        const allSites = App.jobSites.filter(s => 
+          s.isActive && !App.EXCLUDED_SITES.some(ex => s.name.includes(ex))
+        );
+        
+        let sitesHtml = '';
+        allSites.forEach(site => {
+          const statusBadge = site.completedDate 
+            ? '<span class="finance-status completed">完工</span>' 
+            : (site.scaffoldingDone ? '<span class="finance-status scaffolding">架け済</span>' : '<span class="finance-status active">稼働中</span>');
+          
+          sitesHtml += `
+            <div class="finance-card-link" data-site-id="${site.id}">
+              <div class="finance-header">
+                <span class="finance-site-name">${site.name}</span>
+                ${statusBadge}
+              </div>
+              <div class="finance-link-text">タップして詳細を見る →</div>
+            </div>
+          `;
+        });
+
+        return `
+          <div class="header">
+            <button id="backBtn" class="back-btn">← 戻る</button>
+            <span class="header-title">各現場収支</span>
+          </div>
+          <div class="list-content">
+            ${sitesHtml || '<p class="empty-text">現場がありません</p>'}
+          </div>
+        `;
+      },
+      
+      siteFinanceDetail: function() {
+        const site = App.jobSites.find(s => s.id === App.selectedSiteId);
+        if (!site) return '<p class="empty-text">現場が見つかりません</p>';
+        
+        const LABOR_COST_PER_DAY = 25000;
+        const TRUCK_COST_PER_UNIT = 25000;
+        
+        // 勤怠記録から自動人件費を計算
+        const allRecords = App.records.filter(r => r.jobSiteName === site.name);
+        const autoLaborCost = allRecords.length * LABOR_COST_PER_DAY;
+        
+        // 日報データから協力会社・トラックを集計
+        let dailySubcontract = 0;
+        let dailyTruckCount = 0;
+        Object.keys(App.siteDailyReports).forEach(key => {
+          if (key.endsWith('_' + site.name)) {
+            const report = App.siteDailyReports[key];
+            dailySubcontract += report.subcontractAmount || 0;
+            dailyTruckCount += report.truckCount || 0;
+          }
+        });
+        const dailyTruckCost = dailyTruckCount * TRUCK_COST_PER_UNIT;
+        
+        // 総計データ
+        const totalData = App.getSiteFinance(site.id, 'total', 'all');
+        const scaffoldingData = App.getSiteFinance(site.id, 'scaffolding', 'all');
+        const completionData = App.getSiteFinance(site.id, 'completion', 'all');
+        
+        // 材料費データ（月ごと）
+        const materialMonths = totalData.materialMonths || [];
+        let totalMaterialCost = 0;
+        materialMonths.forEach(m => {
+          totalMaterialCost += (m.basicCost || 0) + (m.rentalCost || 0);
+        });
+        
+        // 材料費月ごとHTML
+        let materialMonthsHtml = '';
+        materialMonths.forEach((m, idx) => {
+          materialMonthsHtml += `
+            <div class="material-month-item">
+              <span>${m.month}</span>
+              <span>基本¥${(m.basicCost||0).toLocaleString()} 賃貸¥${(m.rentalCost||0).toLocaleString()}</span>
+              <button class="material-del-btn" data-idx="${idx}">✕</button>
+            </div>
+          `;
+        });
+        
+        // 費用計算
+        const additionalLabor = totalData.laborCost || 0;
+        const additionalSubcontract = totalData.subcontractAmount || 0;
+        const additionalTruckCount = totalData.truckCount || 0;
+        const additionalTruckCost = additionalTruckCount * TRUCK_COST_PER_UNIT;
+        
+        const totalContract = totalData.contractAmount || 0;
+        const totalCost = autoLaborCost + additionalLabor + dailySubcontract + additionalSubcontract + dailyTruckCost + additionalTruckCost + totalMaterialCost;
+        const profit = totalContract - totalCost;
+        const profitRate = totalContract > 0 ? ((profit / totalContract) * 100).toFixed(1) : 0;
+        const profitClass = profit >= 0 ? 'profit-positive' : 'profit-negative';
+
+        return `
+          <div class="header">
+            <button id="backBtn" class="back-btn">← 戻る</button>
+            <span class="header-title">現場収支</span>
+          </div>
+          <div class="list-content">
+            <div class="finance-top-summary">
+              <div class="finance-top-name">${site.name}</div>
+              <div class="finance-top-row">
+                <span>収支</span>
+                <span class="${profitClass}">${profit >= 0 ? '+' : ''}¥${profit.toLocaleString()}</span>
+              </div>
+              <div class="finance-top-row">
+                <span>収益率</span>
+                <span class="${profitClass}">${profitRate}%</span>
+              </div>
+            </div>
+            
+            <!-- 総計アコーディオン -->
+            <div class="accordion-item open" data-section="total">
+              <div class="accordion-header" data-section="total">
+                <span>▼ 総計</span>
+              </div>
+              <div class="accordion-body" id="accordionTotal">
+                <div class="acc-row">
+                  <label>請負金額</label>
+                  <input type="number" id="totalContract" class="acc-input" value="${totalContract}">
+                  <span>円</span>
+                </div>
+                <div class="acc-row display">
+                  <span>👷人件費 勤怠(${allRecords.length}人)</span>
+                  <span>¥${autoLaborCost.toLocaleString()}</span>
+                </div>
+                <div class="acc-row">
+                  <label>👷追加</label>
+                  <input type="number" id="additionalLabor" class="acc-input" value="${additionalLabor}">
+                  <span>円</span>
+                </div>
+                <div class="acc-row display">
+                  <span>🏢協力会社 日報分</span>
+                  <span>¥${dailySubcontract.toLocaleString()}</span>
+                </div>
+                <div class="acc-row">
+                  <label>🏢追加</label>
+                  <input type="number" id="additionalSubcontract" class="acc-input" value="${additionalSubcontract}">
+                  <span>円</span>
+                </div>
+                <div class="acc-row display">
+                  <span>🚚トラック 日報(${dailyTruckCount}台)</span>
+                  <span>¥${dailyTruckCost.toLocaleString()}</span>
+                </div>
+                <div class="acc-row">
+                  <label>🚚追加</label>
+                  <input type="number" id="additionalTruck" class="acc-input" value="${additionalTruckCount}">
+                  <span>台</span>
+                </div>
+                <div class="acc-material-section">
+                  <div class="acc-material-header">
+                    <span>📦材料費 計¥${totalMaterialCost.toLocaleString()}</span>
+                    <button class="acc-add-btn" id="addMaterialMonth">＋</button>
+                  </div>
+                  <div id="materialMonthsList">
+                    ${materialMonthsHtml || '<span class="acc-empty">月を追加してください</span>'}
+                  </div>
+                </div>
+                <button class="acc-save-btn" id="saveTotalBtn">💾 保存</button>
+              </div>
+            </div>
+            
+            <!-- 足場架けアコーディオン -->
+            <div class="accordion-item" data-section="scaffolding">
+              <div class="accordion-header" data-section="scaffolding">
+                <span>▶ 足場架け</span>
+              </div>
+              <div class="accordion-body hidden" id="accordionScaffolding">
+                <div class="acc-row">
+                  <label>請負金額</label>
+                  <input type="number" id="scaffoldingContract" class="acc-input" value="${scaffoldingData.contractAmount || 0}">
+                  <span>円</span>
+                </div>
+                <div class="acc-row">
+                  <label>追加人件費</label>
+                  <input type="number" id="scaffoldingLabor" class="acc-input" value="${scaffoldingData.laborCost || 0}">
+                  <span>円</span>
+                </div>
+                <button class="acc-save-btn" id="saveScaffoldingBtn">💾 保存</button>
+              </div>
+            </div>
+            
+            <!-- 完工アコーディオン -->
+            <div class="accordion-item ${!site.completedDate ? 'disabled' : ''}" data-section="completion">
+              <div class="accordion-header" data-section="completion">
+                <span>▶ 完工${!site.completedDate ? '（未完工）' : ''}</span>
+              </div>
+              <div class="accordion-body hidden" id="accordionCompletion">
+                ${site.completedDate ? `
+                  <div class="acc-row">
+                    <label>請負金額</label>
+                    <input type="number" id="completionContract" class="acc-input" value="${completionData.contractAmount || 0}">
+                    <span>円</span>
+                  </div>
+                  <div class="acc-row">
+                    <label>追加人件費</label>
+                    <input type="number" id="completionLabor" class="acc-input" value="${completionData.laborCost || 0}">
+                    <span>円</span>
+                  </div>
+                  <button class="acc-save-btn" id="saveCompletionBtn">💾 保存</button>
+                ` : '<p class="acc-empty">完工後に入力できます</p>'}
+              </div>
+            </div>
+          </div>
+          
+          <!-- 材料費追加モーダル -->
+          <div id="materialModal" class="site-detail-modal hidden">
+            <div class="site-detail-modal-content">
+              <button class="site-detail-modal-close" id="closeMaterialModal">✕</button>
+              <h3 class="site-detail-title">📦 材料費を追加</h3>
+              <div class="site-report-input-group">
+                <label class="site-report-label">月（例: 2026年1月）</label>
+                <input type="text" id="materialMonth" class="site-report-input" placeholder="2026年1月">
+              </div>
+              <div class="site-report-input-group">
+                <label class="site-report-label">基本料（円）</label>
+                <input type="number" id="materialBasic" class="site-report-input" value="0">
+              </div>
+              <div class="site-report-input-group">
+                <label class="site-report-label">賃貸料（円）</label>
+                <input type="number" id="materialRental" class="site-report-input" value="0">
+              </div>
+              <button class="site-report-save-btn" id="saveMaterialMonth">追加</button>
+            </div>
           </div>
         `;
       },
@@ -1360,6 +4115,12 @@
       employeeMaster: function() {
         let employeesHtml = '';
         App.employees.filter(e => e.id !== 'admin').forEach(emp => {
+          const isParttime = emp.role === 'parttime';
+          const isSubadmin = emp.role === 'subadmin';
+          const roleText = emp.role === 'worker' ? '作業員' : (emp.role === 'manager' ? '責任者' : (emp.role === 'subadmin' ? '管理者（副）' : 'アルバイト'));
+          const rateLabel = isParttime ? '時給' : '日当';
+          const rateValue = isParttime ? (emp.hourlyRate || 1200) : (emp.dailyRate || 15000);
+          
           employeesHtml += `
             <div class="master-card" data-id="${emp.id}">
               <div class="master-header">
@@ -1367,9 +4128,57 @@
                   <span class="employee-id-badge">ID: ${emp.id}</span>
                   ${emp.name}
                 </span>
-                <span class="master-role">${emp.role === 'manager' ? '責任者' : '作業員'}</span>
+                <span class="role-badge ${emp.role}">${roleText}</span>
               </div>
-              <p class="master-detail">日当: ¥${emp.dailyRate.toLocaleString()}</p>
+              <button class="toggle-btn ${emp.isActive ? 'active' : 'inactive'}" data-emp="${emp.id}">${emp.isActive ? '有効' : '無効'}</button>
+              
+              <div class="edit-section">
+                <div class="edit-row">
+                  <label class="edit-label">ID</label>
+                  <div class="edit-input-group">
+                    <input type="text" class="edit-input id-input" data-emp="${emp.id}" value="${emp.id}">
+                    <button class="edit-save-btn save-id-btn" data-emp="${emp.id}">変更</button>
+                  </div>
+                </div>
+                
+                <div class="edit-row">
+                  <label class="edit-label">名前</label>
+                  <div class="edit-input-group">
+                    <input type="text" class="edit-input name-input" data-emp="${emp.id}" value="${emp.name}">
+                    <button class="edit-save-btn save-name-btn" data-emp="${emp.id}">変更</button>
+                  </div>
+                </div>
+                
+                <div class="edit-row">
+                  <label class="edit-label">役割</label>
+                  <div class="edit-input-group">
+                    <select class="edit-select role-select" data-emp="${emp.id}">
+                      <option value="worker" ${emp.role === 'worker' ? 'selected' : ''}>作業員（日当）</option>
+                      <option value="manager" ${emp.role === 'manager' ? 'selected' : ''}>責任者（日当）</option>
+                      <option value="parttime" ${emp.role === 'parttime' ? 'selected' : ''}>アルバイト（時給）</option>
+                      <option value="subadmin" ${emp.role === 'subadmin' ? 'selected' : ''}>管理者（副）</option>
+                    </select>
+                    <button class="edit-save-btn save-role-btn" data-emp="${emp.id}">変更</button>
+                  </div>
+                </div>
+                
+                <div class="edit-row rate-row" data-emp="${emp.id}">
+                  <label class="edit-label rate-label">${rateLabel}</label>
+                  <div class="edit-input-group">
+                    <input type="number" class="edit-input rate-input" data-emp="${emp.id}" value="${rateValue}">
+                    <button class="edit-save-btn save-rate-btn" data-emp="${emp.id}">変更</button>
+                  </div>
+                </div>
+                
+                <div class="edit-row">
+                  <label class="edit-label">有給付与日</label>
+                  <div class="edit-input-group">
+                    <input type="date" class="edit-input paid-leave-input" data-emp="${emp.id}" value="${emp.paidLeaveDate || ''}">
+                    <button class="edit-save-btn save-paid-leave-btn" data-emp="${emp.id}">変更</button>
+                  </div>
+                </div>
+              </div>
+              
               <div class="password-section">
                 <div class="password-row">
                   <span class="password-label">パスワード:</span>
@@ -1381,10 +4190,33 @@
                   <button class="change-password-btn" data-emp="${emp.id}">変更</button>
                 </div>
               </div>
-              <button class="toggle-btn ${emp.isActive ? 'active' : 'inactive'}" data-emp="${emp.id}">${emp.isActive ? '有効' : '無効'}</button>
+              
+              <button class="delete-emp-btn" data-emp="${emp.id}">🗑️ この従業員を削除</button>
             </div>
           `;
         });
+
+        // 削除済み従業員
+        let deletedHtml = '';
+        const deletedEmployees = App.deletedEmployees || [];
+        if (deletedEmployees.length > 0) {
+          deletedHtml = '<div class="deleted-section"><h3 class="form-title">🗑️ 削除済み従業員</h3>';
+          deletedEmployees.forEach(emp => {
+            deletedHtml += `
+              <div class="master-card deleted-card">
+                <div class="master-header">
+                  <span class="master-name">
+                    <span class="employee-id-badge">ID: ${emp.id}</span>
+                    ${emp.name}
+                  </span>
+                  <button class="restore-btn" data-emp="${emp.id}">復旧</button>
+                </div>
+                <p class="master-detail">削除日: ${emp.deletedAt ? new Date(emp.deletedAt).toLocaleDateString('ja-JP') : '不明'}</p>
+              </div>
+            `;
+          });
+          deletedHtml += '</div>';
+        }
 
         return `
           <div class="header">
@@ -1396,14 +4228,20 @@
               <h3 class="form-title">新規従業員登録</h3>
               <input type="text" id="newEmpName" class="form-input" placeholder="従業員名">
               <select id="newEmpRole" class="form-select">
-                <option value="worker">作業員</option>
-                <option value="manager">責任者</option>
+                <option value="worker">作業員（日当）</option>
+                <option value="manager">責任者（日当）</option>
+                <option value="parttime">アルバイト（時給）</option>
+                <option value="subadmin">管理者（副）</option>
               </select>
-              <input type="number" id="newEmpRate" class="form-input" placeholder="日当" value="14000">
+              <div id="newEmpRateSection">
+                <label id="newEmpRateLabel" class="input-label-small">日当</label>
+                <input type="number" id="newEmpRate" class="form-input" placeholder="日当" value="15000">
+              </div>
               <input type="text" id="newEmpPassword" class="form-input" placeholder="初期パスワード" value="1234">
               <button id="addEmployeeBtn" class="add-btn">追加</button>
             </div>
             ${employeesHtml}
+            ${deletedHtml}
           </div>
         `;
       },
@@ -1490,6 +4328,97 @@
         `;
       },
 
+      addressRequestList: function() {
+        let requestsHtml = '';
+        if (App.addressRequests.length === 0) {
+          requestsHtml = '<p class="empty-text">住所変更届はありません</p>';
+        } else {
+          App.addressRequests.forEach(req => {
+            requestsHtml += `
+              <div class="address-request-card">
+                <div class="address-request-header">
+                  <span class="address-request-employee">${req.employeeName}</span>
+                  <span class="address-request-date">${new Date(req.createdAt).toLocaleDateString('ja-JP')}</span>
+                </div>
+                <p class="address-request-detail">
+                  <strong>新住所:</strong><br>
+                  ${req.newAddress}
+                </p>
+                <div class="address-request-actions">
+                  <button class="confirm-address-btn" data-request="${req.id}">✓ 確認済み（削除）</button>
+                </div>
+                <p class="address-request-note">※ 確認ボタンを押すとこの届出は完全に削除されます</p>
+              </div>
+            `;
+          });
+        }
+
+        return `
+          <div class="header">
+            <button id="backBtn" class="back-btn">← 戻る</button>
+            <span class="header-title">住所変更届一覧</span>
+          </div>
+          <div class="list-content">
+            ${requestsHtml}
+          </div>
+        `;
+      },
+
+      csvExport: function() {
+        // 月の選択肢を生成（過去12ヶ月）
+        let monthOptions = '';
+        const today = new Date();
+        for (let i = 0; i < 12; i++) {
+          const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+          const value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+          const label = d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
+          monthOptions += `<option value="${value}">${label}</option>`;
+        }
+
+        return `
+          <div class="header">
+            <button id="backBtn" class="back-btn">← 戻る</button>
+            <span class="header-title">CSVエクスポート</span>
+          </div>
+          <div class="list-content">
+            <div class="export-section">
+              <h3 class="form-title">📊 勤怠データをCSV出力</h3>
+              <p class="export-desc">Excelやスプレッドシートで開けるCSVファイルをダウンロードできます。</p>
+              
+              <div class="export-form">
+                <label class="edit-label">出力期間を選択</label>
+                <select id="exportMonth" class="form-select">
+                  ${monthOptions}
+                </select>
+                
+                <label class="edit-label" style="margin-top: 16px;">出力形式</label>
+                <div class="export-options">
+                  <label class="export-option">
+                    <input type="radio" name="exportType" value="daily" checked>
+                    <span>日別一覧（全従業員の勤怠記録）</span>
+                  </label>
+                  <label class="export-option">
+                    <input type="radio" name="exportType" value="summary">
+                    <span>月次集計（従業員ごとの合計）</span>
+                  </label>
+                  <label class="export-option">
+                    <input type="radio" name="exportType" value="site">
+                    <span>現場別集計</span>
+                  </label>
+                </div>
+                
+                <button id="exportCsvBtn" class="export-btn">📥 CSVをダウンロード</button>
+              </div>
+            </div>
+            
+            <div class="export-preview">
+              <h3 class="form-title">プレビュー</h3>
+              <p class="export-desc">選択した月のデータ: <span id="previewCount">0</span>件</p>
+            </div>
+          </div>
+        `;
+      },
+
       // イベントバインド
       bindEvents: function(view) {
         const self = this;
@@ -1506,12 +4435,37 @@
         const backBtn = document.getElementById('backBtn');
         if (backBtn) {
           backBtn.addEventListener('click', function() {
+            // siteFinanceDetailからはsiteFinanceに戻る
+            if (view === 'siteFinanceDetail') {
+              self.render('siteFinance');
+              return;
+            }
             if (App.currentUser.role === 'admin') {
               self.render('admin');
+            } else if (App.currentUser.role === 'subadmin') {
+              self.render('subadmin');
             } else {
               self.render('home');
             }
           });
+        }
+
+        // カレンダートグル
+        if (view === 'home') {
+          const toggleCalendarBtn = document.getElementById('toggleCalendarBtn');
+          const calendarPopup = document.getElementById('calendarPopup');
+          if (toggleCalendarBtn && calendarPopup) {
+            toggleCalendarBtn.addEventListener('click', function(e) {
+              e.stopPropagation();
+              calendarPopup.classList.toggle('hidden');
+            });
+            // 画面クリックで閉じる
+            document.addEventListener('click', function(e) {
+              if (!calendarPopup.contains(e.target) && e.target !== toggleCalendarBtn) {
+                calendarPopup.classList.add('hidden');
+              }
+            });
+          }
         }
 
         // 時計更新
@@ -1572,7 +4526,13 @@
               if (emp) {
                 App.currentUser = emp;
                 loginError.classList.remove('show');
-                self.render(emp.role === 'admin' ? 'admin' : 'home');
+                if (emp.role === 'admin') {
+                  self.render('admin');
+                } else if (emp.role === 'subadmin') {
+                  self.render('subadmin');
+                } else {
+                  self.render('home');
+                }
               } else {
                 loginError.classList.add('show');
               }
@@ -1614,6 +4574,14 @@
             });
           }
 
+          // 設定ボタン
+          const settingsBtn = document.getElementById('settingsBtn');
+          if (settingsBtn) {
+            settingsBtn.addEventListener('click', function() {
+              self.render('settings');
+            });
+          }
+
           // 修正依頼ボタン
           document.querySelectorAll('.correction-btn').forEach(function(btn) {
             btn.addEventListener('click', function() {
@@ -1621,7 +4589,7 @@
               const record = App.records.find(r => r.id === recordId);
               if (!record) return;
 
-              const reason = prompt('修正依頼の理由を入力してください\n例: 出勤時間を間違えた、退勤を押し忘れた など');
+              const reason = prompt('修正依頼の理由を入力してください\n例: 始業時間を間違えた、終業を押し忘れた など');
               if (!reason) return;
 
               App.corrections.push({
@@ -1641,45 +4609,261 @@
           });
         }
 
-        // 出勤打刻
+        // 設定画面
+        if (view === 'settings') {
+          // ID変更
+          const changeIdBtn = document.getElementById('changeIdBtn');
+          if (changeIdBtn) {
+            changeIdBtn.addEventListener('click', function() {
+              const newId = document.getElementById('newIdInput').value.trim();
+              if (!newId) {
+                alert('新しいIDを入力してください');
+                return;
+              }
+              if (newId === App.currentUser.id) {
+                alert('現在と同じIDです');
+                return;
+              }
+              if (App.employees.find(e => e.id === newId)) {
+                alert('このIDは既に使用されています');
+                return;
+              }
+              App.currentUser.id = newId;
+              const emp = App.employees.find(e => e.id === App.currentUser.id || e.name === App.currentUser.name);
+              if (emp) emp.id = newId;
+              App.save();
+              alert('IDを「' + newId + '」に変更しました');
+              self.render('settings');
+            });
+          }
+
+          // パスワード変更
+          const changePasswordBtn = document.getElementById('changePasswordBtn');
+          if (changePasswordBtn) {
+            changePasswordBtn.addEventListener('click', function() {
+              const currentPass = document.getElementById('currentPasswordInput').value;
+              const newPass = document.getElementById('newPasswordInput').value;
+              const confirmPass = document.getElementById('confirmPasswordInput').value;
+              
+              if (currentPass !== App.currentUser.password) {
+                alert('現在のパスワードが正しくありません');
+                return;
+              }
+              if (!newPass || newPass.length < 4) {
+                alert('新しいパスワードは4文字以上で入力してください');
+                return;
+              }
+              if (newPass !== confirmPass) {
+                alert('新しいパスワードが一致しません');
+                return;
+              }
+              
+              App.currentUser.password = newPass;
+              const emp = App.employees.find(e => e.id === App.currentUser.id);
+              if (emp) emp.password = newPass;
+              App.save();
+              alert('パスワードを変更しました');
+              self.render('settings');
+            });
+          }
+
+          // 住所変更届
+          const submitAddressBtn = document.getElementById('submitAddressBtn');
+          if (submitAddressBtn) {
+            submitAddressBtn.addEventListener('click', function() {
+              const newAddress = document.getElementById('newAddressInput').value.trim();
+              if (!newAddress) {
+                alert('新しい住所を入力してください');
+                return;
+              }
+              
+              App.addressRequests.push({
+                id: Date.now().toString(),
+                employeeId: App.currentUser.id,
+                employeeName: App.currentUser.name,
+                newAddress: newAddress,
+                createdAt: new Date().toISOString()
+              });
+              App.save();
+              alert('住所変更届を送信しました。管理者が確認します。');
+              document.getElementById('newAddressInput').value = '';
+            });
+          }
+        }
+
+        // 管理者/副管理者設定画面
+        if (view === 'adminSettings') {
+          // ID変更
+          const changeIdBtn = document.getElementById('changeIdBtn');
+          if (changeIdBtn) {
+            changeIdBtn.addEventListener('click', function() {
+              const newId = document.getElementById('newIdInput').value.trim();
+              if (!newId) {
+                alert('新しいIDを入力してください');
+                return;
+              }
+              if (newId === App.currentUser.id) {
+                alert('現在と同じIDです');
+                return;
+              }
+              if (App.employees.find(e => e.id === newId)) {
+                alert('このIDは既に使用されています');
+                return;
+              }
+              const oldId = App.currentUser.id;
+              App.currentUser.id = newId;
+              const emp = App.employees.find(e => e.id === oldId);
+              if (emp) emp.id = newId;
+              App.save();
+              alert('IDを「' + newId + '」に変更しました');
+              self.render('adminSettings');
+            });
+          }
+
+          // パスワード変更
+          const changePasswordBtn = document.getElementById('changePasswordBtn');
+          if (changePasswordBtn) {
+            changePasswordBtn.addEventListener('click', function() {
+              const currentPass = document.getElementById('currentPasswordInput').value;
+              const newPass = document.getElementById('newPasswordInput').value;
+              const confirmPass = document.getElementById('confirmPasswordInput').value;
+              
+              if (currentPass !== App.currentUser.password) {
+                alert('現在のパスワードが正しくありません');
+                return;
+              }
+              if (!newPass || newPass.length < 4) {
+                alert('新しいパスワードは4文字以上で入力してください');
+                return;
+              }
+              if (newPass !== confirmPass) {
+                alert('新しいパスワードが一致しません');
+                return;
+              }
+              
+              App.currentUser.password = newPass;
+              const emp = App.employees.find(e => e.id === App.currentUser.id);
+              if (emp) emp.password = newPass;
+              App.save();
+              alert('パスワードを変更しました');
+              self.render('adminSettings');
+            });
+          }
+        }
+
+        // 勤怠履歴画面
+        if (view === 'history') {
+          const monthSelect = document.getElementById('historyMonthSelect');
+          if (monthSelect) {
+            monthSelect.addEventListener('change', function() {
+              App.historyMonth = this.value;
+              self.render('history');
+            });
+          }
+        }
+
+        // 始業打刻
         if (view === 'clockIn') {
           const jobSiteSelect = document.getElementById('jobSiteSelect');
           const customJobSite = document.getElementById('customJobSite');
           const confirmBtn = document.getElementById('confirmClockIn');
 
+          // 地図を初期化
+          const mapEl = document.getElementById('clockInMap');
+          if (mapEl && App.gpsLocation) {
+            setTimeout(function() {
+              const map = L.map('clockInMap').setView([App.gpsLocation.lat, App.gpsLocation.lng], 16);
+              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+              }).addTo(map);
+              L.marker([App.gpsLocation.lat, App.gpsLocation.lng]).addTo(map)
+                .bindPopup('現在地').openPopup();
+            }, 100);
+          }
+
+          // 入力状態をチェックする関数
+          function checkInput() {
+            const hasSelect = jobSiteSelect.value !== '';
+            const hasCustom = customJobSite.value.trim() !== '';
+            confirmBtn.disabled = !hasSelect && !hasCustom;
+          }
+
           if (jobSiteSelect) {
             jobSiteSelect.addEventListener('change', function() {
-              if (this.value === 'custom') {
-                customJobSite.classList.remove('hidden');
-                confirmBtn.disabled = !customJobSite.value.trim();
-              } else {
-                customJobSite.classList.add('hidden');
-                confirmBtn.disabled = !this.value;
+              // 既存現場を選んだら、新規入力欄をクリア
+              if (this.value) {
+                customJobSite.value = '';
               }
+              checkInput();
             });
           }
 
           if (customJobSite) {
             customJobSite.addEventListener('input', function() {
-              confirmBtn.disabled = !this.value.trim();
+              // 新規入力したら、選択をリセット
+              if (this.value.trim()) {
+                jobSiteSelect.value = '';
+              }
+              checkInput();
             });
           }
 
           if (confirmBtn) {
             confirmBtn.addEventListener('click', function() {
-              const siteId = jobSiteSelect.value;
+              let siteId = jobSiteSelect.value;
               let siteName = '';
-              if (siteId === 'custom') {
-                siteName = customJobSite.value.trim();
-              } else {
+              
+              // 新規入力があればそちらを優先
+              if (customJobSite.value.trim()) {
+                let inputName = customJobSite.value.trim();
+                
+                // デバッグ
+                alert("入力: " + inputName + "\n現場一覧: " + App.jobSites.map(s => s.name).join(", "));
+                
+                // 類似現場名をチェック（漢字2文字以上一致）
+                const similarSite = App.findSimilarSite(inputName);
+                alert("類似現場: " + (similarSite || "なし"));
+                
+                if (similarSite) {
+                  if (confirm(`「${similarSite}」の現場ではありませんか？\n\n[OK] → 「${similarSite}」を使用\n[キャンセル] → 「${inputName}」で新規登録`)) {
+                    siteName = similarSite;
+                  } else {
+                    siteName = inputName;
+                  }
+                } else {
+                  siteName = inputName;
+                }
+                
+                // 同じ名前の現場が既にあるかチェック
+                const existingSite = App.jobSites.find(s => s.name === siteName);
+                if (existingSite) {
+                  siteId = existingSite.id;
+                } else {
+                  // 新しい現場をマスタに自動追加
+                  const newSite = {
+                    id: Date.now().toString(),
+                    name: siteName,
+                    address: '',
+                    isActive: true,
+                    addedBy: App.currentUser.name,
+                    addedAt: new Date().toISOString()
+                  };
+                  App.jobSites.push(newSite);
+                  siteId = newSite.id;
+                }
+              } else if (siteId) {
                 const site = App.jobSites.find(s => s.id === siteId);
                 siteName = site ? site.name : '';
               }
 
               if (!siteName) {
-                alert('現場を選択してください');
+                alert('現場を選択または入力してください');
                 return;
               }
+
+              // 夜勤判定（17時〜翌5時の出勤は夜勤）
+              const clockInHour = new Date().getHours();
+              const shiftType = (clockInHour >= 17 || clockInHour < 5) ? 'night' : 'day';
 
               const newRecord = {
                 id: Date.now().toString(),
@@ -1692,22 +4876,36 @@
                 clockOutTime: null,
                 clockInLat: App.gpsLocation ? App.gpsLocation.lat : null,
                 clockInLng: App.gpsLocation ? App.gpsLocation.lng : null,
+                shiftType: shiftType,
                 memo: '',
                 status: 'working'
               };
 
               App.records.push(newRecord);
               App.save();
-              alert('出勤を記録しました！');
+              alert('始業を記録しました！' + (shiftType === 'night' ? '（🌙夜勤）' : ''));
               self.render('home');
             });
           }
         }
 
-        // 退勤打刻
+        // 終業打刻
         if (view === 'clockOut') {
           const confirmBtn = document.getElementById('confirmClockOut');
           const workMemo = document.getElementById('workMemo');
+
+          // 地図を初期化
+          const mapEl = document.getElementById('clockOutMap');
+          if (mapEl && App.gpsLocation) {
+            setTimeout(function() {
+              const map = L.map('clockOutMap').setView([App.gpsLocation.lat, App.gpsLocation.lng], 16);
+              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+              }).addTo(map);
+              L.marker([App.gpsLocation.lat, App.gpsLocation.lng]).addTo(map)
+                .bindPopup('現在地').openPopup();
+            }, 100);
+          }
 
           if (confirmBtn) {
             confirmBtn.addEventListener('click', function() {
@@ -1725,9 +4923,14 @@
               record.overtimeHours = Math.max(0, Math.round((workHours - 8) * 100) / 100);
               record.memo = workMemo ? workMemo.value : '';
               record.status = 'completed';
+              
+              // アルバイトの場合、その時点の時給を記録に保存
+              if (App.currentUser.role === 'parttime') {
+                record.hourlyRate = App.currentUser.hourlyRate || 1200;
+              }
 
               App.save();
-              alert('退勤を記録しました！お疲れさまでした！');
+              alert('終業を記録しました！お疲れさまでした！');
               self.render('home');
             });
           }
@@ -1743,15 +4946,613 @@
               }
             });
           });
+
+          // 管理者の出勤ボタン
+          const adminClockIn = document.getElementById('adminClockIn');
+          if (adminClockIn) {
+            adminClockIn.addEventListener('click', function() {
+              App.getGPS(function() {
+                self.render('clockIn');
+              });
+            });
+          }
+
+          // 管理者の退勤ボタン
+          const adminClockOut = document.getElementById('adminClockOut');
+          if (adminClockOut) {
+            adminClockOut.addEventListener('click', function() {
+              App.getGPS(function() {
+                self.render('clockOut');
+              });
+            });
+          }
         }
 
-        // 日別一覧
+        // 副管理者画面
+        if (view === 'subadmin') {
+          document.querySelectorAll('.menu-card').forEach(function(card) {
+            card.addEventListener('click', function() {
+              const targetView = this.getAttribute('data-view');
+              if (targetView) {
+                self.render(targetView);
+              }
+            });
+          });
+
+          // 副管理者の出勤ボタン
+          const subadminClockIn = document.getElementById('subadminClockIn');
+          if (subadminClockIn) {
+            subadminClockIn.addEventListener('click', function() {
+              App.getGPS(function() {
+                self.render('clockIn');
+              });
+            });
+          }
+
+          // 副管理者の退勤ボタン
+          const subadminClockOut = document.getElementById('subadminClockOut');
+          if (subadminClockOut) {
+            subadminClockOut.addEventListener('click', function() {
+              App.getGPS(function() {
+                self.render('clockOut');
+              });
+            });
+          }
+        }
+
+        // 稼働現場一覧
+        if (view === 'siteList') {
+          const siteDateSelect = document.getElementById('siteDateSelect');
+          if (siteDateSelect) {
+            siteDateSelect.addEventListener('change', function() {
+              App.selectedSiteDate = this.value;
+              self.render('siteList');
+            });
+          }
+
+          // 稼働中現場セルのクリック
+          document.querySelectorAll('.site-cell:not(.completed-site)').forEach(function(cell) {
+            cell.addEventListener('click', function() {
+              const siteName = this.getAttribute('data-site-name');
+              const siteId = this.getAttribute('data-site-id');
+              const selectedDate = App.selectedSiteDate;
+              const site = App.jobSites.find(s => s.id === siteId);
+              
+              // その日のその現場の記録を取得
+              const isAdmin = App.currentUser.role === 'admin';
+              let siteRecords = App.records.filter(r => 
+                r.workDate === selectedDate && r.jobSiteName === siteName
+              );
+              if (!isAdmin) {
+                siteRecords = siteRecords.filter(r => !App.PRIVATE_EMPLOYEE_IDS.includes(r.employeeId));
+              }
+              
+              // 現場日報データを取得
+              const report = App.getSiteDailyReport(selectedDate, siteName);
+              
+              // 従業員リストHTML
+              let workersHtml = '';
+              if (siteRecords.length > 0) {
+                siteRecords.forEach(r => {
+                  const statusClass = r.status === 'working' ? 'working' : 'completed';
+                  const statusText = r.status === 'working' ? '勤務中' : '終業';
+                  workersHtml += `
+                    <div class="site-worker-row">
+                      <span class="site-worker-name">${r.employeeName}</span>
+                      <span class="site-worker-time">${App.formatTime(r.clockInTime)}〜${r.clockOutTime ? App.formatTime(r.clockOutTime) : ''}</span>
+                      <span class="site-worker-status ${statusClass}">${statusText}</span>
+                    </div>
+                  `;
+                });
+              } else {
+                workersHtml = '<p style="color: #64748b; font-size: 13px;">この日の出勤記録はありません</p>';
+              }
+              
+              const detailHtml = `
+                <h3 class="site-detail-title">🏗️ ${siteName}</h3>
+                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">${App.formatDate(selectedDate)}</p>
+                
+                <div class="site-detail-section">
+                  <h4 class="site-detail-section-title">👷 自社作業員（${siteRecords.length}名）</h4>
+                  ${workersHtml}
+                </div>
+                
+                <div class="site-detail-section">
+                  <h4 class="site-detail-section-title">📝 現場日報</h4>
+                  <div class="site-report-input-group">
+                    <label class="site-report-label">業者作業員人数</label>
+                    <input type="number" id="vendorWorkersInput" class="site-report-input" value="${report.vendorWorkers}" min="0">
+                  </div>
+                  <div class="site-report-input-group">
+                    <label class="site-report-label">請負金額（円）</label>
+                    <input type="number" id="contractAmountInput" class="site-report-input" value="${report.contractAmount}" min="0">
+                  </div>
+                  <div class="site-report-input-group">
+                    <label class="site-report-label">トラック台数</label>
+                    <input type="number" id="truckCountInput" class="site-report-input" value="${report.truckCount}" min="0">
+                  </div>
+                  <div class="site-report-input-group">
+                    <label class="site-report-label">協力会社発注金額（円）</label>
+                    <input type="number" id="subcontractAmountInput" class="site-report-input" value="${report.subcontractAmount}" min="0">
+                  </div>
+                  <button class="site-report-save-btn" id="saveSiteReportBtn" 
+                    data-date="${selectedDate}" data-site="${siteName}">
+                    💾 保存
+                  </button>
+                </div>
+                
+                <div class="site-completion-section">
+                  <h4 class="site-completion-title">🏁 完工処理</h4>
+                  <button class="site-completion-btn scaffolding ${site && site.scaffoldingDone ? 'done' : ''}" 
+                    id="scaffoldingBtn" data-site-id="${siteId}">
+                    ${site && site.scaffoldingDone ? '✓ 足場架け完了済み' : '足場架け完了'}
+                  </button>
+                  <button class="site-completion-btn complete" id="completeBtn" data-site-id="${siteId}">
+                    足場払し完了（完工）
+                  </button>
+                </div>
+              `;
+              
+              document.getElementById('siteDetailBody').innerHTML = detailHtml;
+              document.getElementById('siteDetailModal').classList.remove('hidden');
+              
+              // 保存ボタン
+              const saveBtn = document.getElementById('saveSiteReportBtn');
+              if (saveBtn) {
+                saveBtn.addEventListener('click', function() {
+                  const date = this.getAttribute('data-date');
+                  const site = this.getAttribute('data-site');
+                  const data = {
+                    vendorWorkers: parseInt(document.getElementById('vendorWorkersInput').value) || 0,
+                    contractAmount: parseInt(document.getElementById('contractAmountInput').value) || 0,
+                    truckCount: parseInt(document.getElementById('truckCountInput').value) || 0,
+                    subcontractAmount: parseInt(document.getElementById('subcontractAmountInput').value) || 0
+                  };
+                  App.saveSiteDailyReport(date, site, data);
+                  alert('現場日報を保存しました');
+                });
+              }
+              
+              // 足場架け完了ボタン
+              const scaffoldingBtn = document.getElementById('scaffoldingBtn');
+              if (scaffoldingBtn) {
+                scaffoldingBtn.addEventListener('click', function() {
+                  const siteId = this.getAttribute('data-site-id');
+                  const site = App.jobSites.find(s => s.id === siteId);
+                  if (site) {
+                    if (site.scaffoldingDone) {
+                      if (confirm('足場架け完了を取り消しますか？')) {
+                        site.scaffoldingDone = false;
+                        site.scaffoldingDate = null;
+                        App.save();
+                        document.getElementById('siteDetailModal').classList.add('hidden');
+                        self.render('siteList');
+                      }
+                    } else {
+                      if (confirm('足場架け完了にしますか？')) {
+                        site.scaffoldingDone = true;
+                        site.scaffoldingDate = App.getToday();
+                        App.save();
+                        document.getElementById('siteDetailModal').classList.add('hidden');
+                        self.render('siteList');
+                      }
+                    }
+                  }
+                });
+              }
+              
+              // 完工ボタン
+              const completeBtn = document.getElementById('completeBtn');
+              if (completeBtn) {
+                completeBtn.addEventListener('click', function() {
+                  const siteId = this.getAttribute('data-site-id');
+                  const site = App.jobSites.find(s => s.id === siteId);
+                  if (site) {
+                    if (confirm('「' + site.name + '」を完工（足場払し完了）にしますか？\n\n完工した現場は終了現場一覧に移動します。')) {
+                      site.completedDate = App.getToday();
+                      App.save();
+                      document.getElementById('siteDetailModal').classList.add('hidden');
+                      alert('完工しました');
+                      self.render('siteList');
+                    }
+                  }
+                });
+              }
+            });
+          });
+          
+          // 終了現場セルのクリック（稼働に戻す）
+          document.querySelectorAll('.site-cell.completed-site').forEach(function(cell) {
+            cell.addEventListener('click', function() {
+              const siteId = this.getAttribute('data-site-id');
+              const siteName = this.getAttribute('data-site-name');
+              const site = App.jobSites.find(s => s.id === siteId);
+              
+              if (site) {
+                const detailHtml = `
+                  <h3 class="site-detail-title">✅ ${siteName}</h3>
+                  <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">完工日: ${site.completedDate}</p>
+                  
+                  <div class="site-detail-section">
+                    <p style="color: #f1f5f9; font-size: 14px; margin-bottom: 16px;">この現場は完工済みです。</p>
+                    <button class="site-completion-btn restore" id="restoreSiteBtn" data-site-id="${siteId}">
+                      🔄 稼働現場に戻す
+                    </button>
+                  </div>
+                `;
+                
+                document.getElementById('siteDetailBody').innerHTML = detailHtml;
+                document.getElementById('siteDetailModal').classList.remove('hidden');
+                
+                // 稼働に戻すボタン
+                const restoreBtn = document.getElementById('restoreSiteBtn');
+                if (restoreBtn) {
+                  restoreBtn.addEventListener('click', function() {
+                    const siteId = this.getAttribute('data-site-id');
+                    const site = App.jobSites.find(s => s.id === siteId);
+                    if (site) {
+                      if (confirm('「' + site.name + '」を稼働現場に戻しますか？')) {
+                        site.completedDate = null;
+                        App.save();
+                        document.getElementById('siteDetailModal').classList.add('hidden');
+                        alert('稼働現場に戻しました');
+                        self.render('siteList');
+                      }
+                    }
+                  });
+                }
+              }
+            });
+          });
+
+          // 詳細モーダルを閉じる
+          const closeBtn = document.getElementById('closeSiteDetailModal');
+          if (closeBtn) {
+            closeBtn.addEventListener('click', function() {
+              document.getElementById('siteDetailModal').classList.add('hidden');
+            });
+          }
+        }
+
+        // 各現場収支
+        if (view === 'siteFinance') {
+          document.querySelectorAll('.finance-card-link').forEach(function(card) {
+            card.addEventListener('click', function() {
+              const siteId = this.getAttribute('data-site-id');
+              App.selectedSiteId = siteId;
+              self.render('siteFinanceDetail');
+            });
+          });
+        }
+        
+        // 各現場収支詳細
+        if (view === 'siteFinanceDetail') {
+          // アコーディオン開閉
+          document.querySelectorAll('.accordion-header').forEach(function(header) {
+            header.addEventListener('click', function() {
+              const section = this.getAttribute('data-section');
+              const item = this.closest('.accordion-item');
+              if (item.classList.contains('disabled')) return;
+              
+              const body = document.getElementById('accordion' + section.charAt(0).toUpperCase() + section.slice(1));
+              const isHidden = body.classList.contains('hidden');
+              
+              // 全部閉じる
+              document.querySelectorAll('.accordion-body').forEach(b => b.classList.add('hidden'));
+              document.querySelectorAll('.accordion-header span').forEach(s => {
+                s.textContent = s.textContent.replace('▼', '▶');
+              });
+              
+              // クリックしたものを開く
+              if (isHidden) {
+                body.classList.remove('hidden');
+                this.querySelector('span').textContent = this.querySelector('span').textContent.replace('▶', '▼');
+              }
+            });
+          });
+          
+          // 総計保存ボタン
+          const saveTotalBtn = document.getElementById('saveTotalBtn');
+          if (saveTotalBtn) {
+            saveTotalBtn.addEventListener('click', function() {
+              const existingData = App.getSiteFinance(App.selectedSiteId, 'total', 'all');
+              const data = {
+                contractAmount: parseInt(document.getElementById('totalContract').value) || 0,
+                laborCost: parseInt(document.getElementById('additionalLabor').value) || 0,
+                subcontractAmount: parseInt(document.getElementById('additionalSubcontract').value) || 0,
+                truckCount: parseInt(document.getElementById('additionalTruck').value) || 0,
+                materialMonths: existingData.materialMonths || []
+              };
+              App.saveSiteFinance(App.selectedSiteId, 'total', 'all', data);
+              alert('保存しました');
+              self.render('siteFinanceDetail');
+            });
+          }
+          
+          // 材料費追加ボタン
+          const addMaterialBtn = document.getElementById('addMaterialMonth');
+          if (addMaterialBtn) {
+            addMaterialBtn.addEventListener('click', function() {
+              document.getElementById('materialMonth').value = '';
+              document.getElementById('materialBasic').value = '0';
+              document.getElementById('materialRental').value = '0';
+              document.getElementById('materialModal').classList.remove('hidden');
+            });
+          }
+          
+          // 材料費モーダル閉じる
+          const closeMaterialModal = document.getElementById('closeMaterialModal');
+          if (closeMaterialModal) {
+            closeMaterialModal.addEventListener('click', function() {
+              document.getElementById('materialModal').classList.add('hidden');
+            });
+          }
+          
+          // 材料費保存
+          const saveMaterialMonth = document.getElementById('saveMaterialMonth');
+          if (saveMaterialMonth) {
+            saveMaterialMonth.addEventListener('click', function() {
+              const month = document.getElementById('materialMonth').value;
+              if (!month) {
+                alert('月を入力してください');
+                return;
+              }
+              const basicCost = parseInt(document.getElementById('materialBasic').value) || 0;
+              const rentalCost = parseInt(document.getElementById('materialRental').value) || 0;
+              
+              const existingData = App.getSiteFinance(App.selectedSiteId, 'total', 'all');
+              const materialMonths = existingData.materialMonths || [];
+              materialMonths.push({ month, basicCost, rentalCost });
+              
+              existingData.materialMonths = materialMonths;
+              App.saveSiteFinance(App.selectedSiteId, 'total', 'all', existingData);
+              document.getElementById('materialModal').classList.add('hidden');
+              self.render('siteFinanceDetail');
+            });
+          }
+          
+          // 材料費削除
+          document.querySelectorAll('.material-del-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const idx = parseInt(this.getAttribute('data-idx'));
+              if (confirm('この月の材料費を削除しますか？')) {
+                const existingData = App.getSiteFinance(App.selectedSiteId, 'total', 'all');
+                const materialMonths = existingData.materialMonths || [];
+                materialMonths.splice(idx, 1);
+                existingData.materialMonths = materialMonths;
+                App.saveSiteFinance(App.selectedSiteId, 'total', 'all', existingData);
+                self.render('siteFinanceDetail');
+              }
+            });
+          });
+          
+          // 足場架け保存ボタン
+          const saveScaffoldingBtn = document.getElementById('saveScaffoldingBtn');
+          if (saveScaffoldingBtn) {
+            saveScaffoldingBtn.addEventListener('click', function() {
+              const data = {
+                contractAmount: parseInt(document.getElementById('scaffoldingContract').value) || 0,
+                laborCost: parseInt(document.getElementById('scaffoldingLabor').value) || 0
+              };
+              App.saveSiteFinance(App.selectedSiteId, 'scaffolding', 'all', data);
+              alert('保存しました');
+              self.render('siteFinanceDetail');
+            });
+          }
+          
+          // 完工保存ボタン
+          const saveCompletionBtn = document.getElementById('saveCompletionBtn');
+          if (saveCompletionBtn) {
+            saveCompletionBtn.addEventListener('click', function() {
+              const data = {
+                contractAmount: parseInt(document.getElementById('completionContract').value) || 0,
+                laborCost: parseInt(document.getElementById('completionLabor').value) || 0
+              };
+              App.saveSiteFinance(App.selectedSiteId, 'completion', 'all', data);
+              alert('保存しました');
+              self.render('siteFinanceDetail');
+            });
+          }
+        }
+
+        // 終了現場
+        if (view === 'completedSiteList') {
+          // 終了現場セルのクリック
+          document.querySelectorAll('.site-cell.completed-site').forEach(function(cell) {
+            cell.addEventListener('click', function() {
+              const siteId = this.getAttribute('data-site-id');
+              const siteName = this.getAttribute('data-site-name');
+              const site = App.jobSites.find(s => s.id === siteId);
+              
+              if (site) {
+                const detailHtml = `
+                  <h3 class="site-detail-title">✅ ${siteName}</h3>
+                  <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">完工日: ${site.completedDate}</p>
+                  
+                  <div class="site-detail-section">
+                    <p style="color: #f1f5f9; font-size: 14px; margin-bottom: 16px;">この現場は完工済みです。</p>
+                    <button class="site-completion-btn restore" id="restoreSiteBtn" data-site-id="${siteId}">
+                      🔄 稼働現場に戻す
+                    </button>
+                  </div>
+                `;
+                
+                document.getElementById('siteDetailBody').innerHTML = detailHtml;
+                document.getElementById('siteDetailModal').classList.remove('hidden');
+                
+                // 稼働に戻すボタン
+                const restoreBtn = document.getElementById('restoreSiteBtn');
+                if (restoreBtn) {
+                  restoreBtn.addEventListener('click', function() {
+                    const siteId = this.getAttribute('data-site-id');
+                    const site = App.jobSites.find(s => s.id === siteId);
+                    if (site) {
+                      if (confirm('「' + site.name + '」を稼働現場に戻しますか？')) {
+                        site.completedDate = null;
+                        App.save();
+                        document.getElementById('siteDetailModal').classList.add('hidden');
+                        alert('稼働現場に戻しました');
+                        self.render('completedSiteList');
+                      }
+                    }
+                  });
+                }
+              }
+            });
+          });
+
+          // 詳細モーダルを閉じる
+          const closeBtn = document.getElementById('closeSiteDetailModal');
+          if (closeBtn) {
+            closeBtn.addEventListener('click', function() {
+              document.getElementById('siteDetailModal').classList.add('hidden');
+            });
+          }
+        }
+
+        // 出勤一覧
         if (view === 'dailyList') {
           const dateSelect = document.getElementById('dateSelect');
           if (dateSelect) {
             dateSelect.addEventListener('change', function() {
               App.selectedDate = this.value;
               self.render('dailyList');
+            });
+          }
+
+          // マーク（◯）のクリックで詳細表示
+          let modalMap = null;
+          document.querySelectorAll('.attendance-mark-item').forEach(function(markItem) {
+            markItem.addEventListener('click', function(e) {
+              e.stopPropagation();
+              const recordId = this.getAttribute('data-record-id');
+              const record = App.records.find(r => r.id === recordId);
+              if (!record) return;
+
+              const hasGps = record.clockInLat && record.clockInLng;
+              const shiftLabel = record.shiftType === 'night' ? '🌙 夜勤' : '☀️ 日勤';
+              const statusLabel = record.status === 'completed' ? '終業' : '勤務中';
+              
+              const detailHtml = `
+                <h3 class="attendance-detail-name">${record.employeeName}</h3>
+                <div class="attendance-detail-row">
+                  <span class="attendance-detail-label">状態</span>
+                  <span class="attendance-detail-value" style="color: ${record.status === 'completed' ? '#f59e0b' : '#10b981'}">${statusLabel}</span>
+                </div>
+                <div class="attendance-detail-row">
+                  <span class="attendance-detail-label">現場</span>
+                  <span class="attendance-detail-value">${record.jobSiteName}</span>
+                </div>
+                <div class="attendance-detail-row">
+                  <span class="attendance-detail-label">区分</span>
+                  <span class="attendance-detail-value">${shiftLabel}</span>
+                </div>
+                <div class="attendance-detail-row">
+                  <span class="attendance-detail-label">始業</span>
+                  <span class="attendance-detail-value">${App.formatTime(record.clockInTime)}</span>
+                </div>
+                <div class="attendance-detail-row">
+                  <span class="attendance-detail-label">終業</span>
+                  <span class="attendance-detail-value">${record.clockOutTime ? App.formatTime(record.clockOutTime) : '−'}</span>
+                </div>
+                ${record.workHours ? `
+                <div class="attendance-detail-row">
+                  <span class="attendance-detail-label">勤務時間</span>
+                  <span class="attendance-detail-value">${record.workHours.toFixed(1)}時間</span>
+                </div>
+                ` : ''}
+                <button class="attendance-detail-map-btn" id="showMapFromDetail" 
+                  data-lat="${record.clockInLat || ''}" 
+                  data-lng="${record.clockInLng || ''}"
+                  data-name="${record.employeeName}"
+                  data-site="${record.jobSiteName}"
+                  data-time="${App.formatTime(record.clockInTime)}"
+                  ${!hasGps ? 'disabled' : ''}>
+                  📍 ${hasGps ? '打刻場所を地図で見る' : '位置情報なし'}
+                </button>
+                ${(App.currentUser.role === 'admin' || App.currentUser.role === 'subadmin') ? `
+                <button class="attendance-detail-delete-btn" id="deleteRecordBtn" data-record-id="${record.id}">
+                  🗑️ この記録を削除
+                </button>
+                ` : ''}
+              `;
+              
+              document.getElementById('attendanceDetailBody').innerHTML = detailHtml;
+              document.getElementById('attendanceDetailModal').classList.remove('hidden');
+
+              // 削除ボタン
+              const deleteBtn = document.getElementById('deleteRecordBtn');
+              if (deleteBtn) {
+                deleteBtn.addEventListener('click', function() {
+                  const recId = this.getAttribute('data-record-id');
+                  const rec = App.records.find(r => r.id === recId);
+                  if (!rec) return;
+                  
+                  if (!confirm('この記録を削除しますか？\n\n' + rec.employeeName + '\n' + App.formatDate(rec.workDate) + ' ' + App.formatTime(rec.clockInTime) + '〜\n現場: ' + rec.jobSiteName + '\n\nこの操作は取り消せません。')) {
+                    return;
+                  }
+                  
+                  App.records = App.records.filter(r => r.id !== recId);
+                  App.save();
+                  document.getElementById('attendanceDetailModal').classList.add('hidden');
+                  alert('記録を削除しました');
+                  self.render('dailyList');
+                });
+              }
+
+              // 地図ボタン
+              const mapBtn = document.getElementById('showMapFromDetail');
+              if (mapBtn && hasGps) {
+                mapBtn.addEventListener('click', function() {
+                  const lat = parseFloat(this.getAttribute('data-lat'));
+                  const lng = parseFloat(this.getAttribute('data-lng'));
+                  const name = this.getAttribute('data-name');
+                  const site = this.getAttribute('data-site');
+                  const time = this.getAttribute('data-time');
+
+                  document.getElementById('attendanceDetailModal').classList.add('hidden');
+                  
+                  const modal = document.getElementById('mapModal');
+                  const title = document.getElementById('mapModalTitle');
+                  const info = document.getElementById('mapModalInfo');
+
+                  title.textContent = name + ' の打刻場所';
+                  info.textContent = '現場: ' + site + ' ／ 始業: ' + time;
+                  modal.classList.remove('hidden');
+
+                  setTimeout(function() {
+                    if (modalMap) {
+                      modalMap.remove();
+                    }
+                    modalMap = L.map('modalMap').setView([lat, lng], 16);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                      attribution: '© OpenStreetMap'
+                    }).addTo(modalMap);
+                    L.marker([lat, lng]).addTo(modalMap)
+                      .bindPopup(name + '<br>' + site).openPopup();
+                  }, 100);
+                });
+              }
+            });
+          });
+
+          // 詳細モーダルを閉じる
+          const closeDetailBtn = document.getElementById('closeDetailModal');
+          if (closeDetailBtn) {
+            closeDetailBtn.addEventListener('click', function() {
+              document.getElementById('attendanceDetailModal').classList.add('hidden');
+            });
+          }
+
+          // 地図モーダルを閉じる
+          const closeBtn = document.getElementById('closeMapModal');
+          if (closeBtn) {
+            closeBtn.addEventListener('click', function() {
+              document.getElementById('mapModal').classList.add('hidden');
+              if (modalMap) {
+                modalMap.remove();
+                modalMap = null;
+              }
             });
           }
         }
@@ -1763,7 +5564,7 @@
             addBtn.addEventListener('click', function() {
               const name = document.getElementById('newEmpName').value.trim();
               const role = document.getElementById('newEmpRole').value;
-              const rate = parseInt(document.getElementById('newEmpRate').value) || 14000;
+              const rate = parseInt(document.getElementById('newEmpRate').value) || (role === 'parttime' ? 1200 : 15000);
               const password = document.getElementById('newEmpPassword').value || '1234';
 
               if (!name) {
@@ -1774,18 +5575,124 @@
               const maxId = Math.max(...App.employees.filter(e => e.id !== 'admin').map(e => parseInt(e.id)));
               const newId = (maxId + 1).toString();
 
-              App.employees.push({
+              const newEmp = {
                 id: newId,
                 name: name,
                 role: role,
-                dailyRate: rate,
+                dailyRate: role === 'parttime' ? 0 : rate,
+                hourlyRate: role === 'parttime' ? rate : 0,
                 isActive: true,
                 password: password
-              });
+              };
+              App.employees.push(newEmp);
               App.save();
               self.render('employeeMaster');
             });
           }
+
+          // 新規登録フォームの役割変更時にラベル切り替え
+          const newEmpRole = document.getElementById('newEmpRole');
+          if (newEmpRole) {
+            newEmpRole.addEventListener('change', function() {
+              const label = document.getElementById('newEmpRateLabel');
+              const input = document.getElementById('newEmpRate');
+              if (this.value === 'parttime') {
+                label.textContent = '時給';
+                input.placeholder = '時給';
+                input.value = '1200';
+              } else {
+                label.textContent = '日当';
+                input.placeholder = '日当';
+                input.value = '15000';
+              }
+            });
+          }
+
+          // 名前変更
+          document.querySelectorAll('.save-name-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const empId = this.getAttribute('data-emp');
+              const inputEl = document.querySelector('.name-input[data-emp="' + empId + '"]');
+              const newName = inputEl.value.trim();
+              if (!newName) {
+                alert('名前を入力してください');
+                return;
+              }
+              const emp = App.employees.find(e => e.id === empId);
+              emp.name = newName;
+              App.save();
+              alert('名前を「' + newName + '」に変更しました');
+              self.render('employeeMaster');
+            });
+          });
+
+          // 日当/時給変更
+          document.querySelectorAll('.save-rate-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const empId = this.getAttribute('data-emp');
+              const inputEl = document.querySelector('.rate-input[data-emp="' + empId + '"]');
+              const newRate = parseInt(inputEl.value);
+              if (!newRate || newRate < 0) {
+                alert('正しい金額を入力してください');
+                return;
+              }
+              const emp = App.employees.find(e => e.id === empId);
+              if (emp.role === 'parttime') {
+                emp.hourlyRate = newRate;
+                App.save();
+                alert('時給を ¥' + newRate.toLocaleString() + ' に変更しました');
+              } else {
+                emp.dailyRate = newRate;
+                App.save();
+                alert('日当を ¥' + newRate.toLocaleString() + ' に変更しました');
+              }
+            });
+          });
+
+          // 有給付与日変更
+          document.querySelectorAll('.save-paid-leave-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const empId = this.getAttribute('data-emp');
+              const inputEl = document.querySelector('.paid-leave-input[data-emp="' + empId + '"]');
+              const newDate = inputEl.value;
+              const emp = App.employees.find(e => e.id === empId);
+              emp.paidLeaveDate = newDate;
+              App.save();
+              if (newDate) {
+                const d = new Date(newDate);
+                alert('有給付与日を ' + d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 に設定しました');
+              } else {
+                alert('有給付与日をクリアしました');
+              }
+              self.render('employeeMaster');
+            });
+          });
+
+          // 役割変更
+          document.querySelectorAll('.save-role-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const empId = this.getAttribute('data-emp');
+              const selectEl = document.querySelector('.role-select[data-emp="' + empId + '"]');
+              const newRole = selectEl.value;
+              const emp = App.employees.find(e => e.id === empId);
+              const oldRole = emp.role;
+              emp.role = newRole;
+              
+              // 役割が変わったら金額をリセット
+              if (newRole === 'parttime' && oldRole !== 'parttime') {
+                emp.hourlyRate = 1200;
+                emp.dailyRate = 0;
+              } else if (newRole !== 'parttime' && oldRole === 'parttime') {
+                emp.dailyRate = 15000;
+                emp.hourlyRate = 0;
+              }
+              
+              App.save();
+              const roleText = newRole === 'manager' ? '責任者' : (newRole === 'parttime' ? 'アルバイト' : (newRole === 'subadmin' ? '管理者（副）' : '作業員'));
+              alert('役割を「' + roleText + '」に変更しました');
+              self.render('employeeMaster');
+            });
+          });
 
           // パスワード表示
           document.querySelectorAll('.show-password-btn').forEach(function(btn) {
@@ -1828,6 +5735,74 @@
               const emp = App.employees.find(e => e.id === empId);
               emp.isActive = !emp.isActive;
               App.save();
+              self.render('employeeMaster');
+            });
+          });
+
+          // ID変更
+          document.querySelectorAll('.save-id-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const oldId = this.getAttribute('data-emp');
+              const inputEl = document.querySelector('.id-input[data-emp="' + oldId + '"]');
+              const newId = inputEl.value.trim();
+              
+              if (!newId) {
+                alert('IDを入力してください');
+                return;
+              }
+              if (newId === oldId) {
+                return;
+              }
+              // 重複チェック
+              if (App.employees.find(e => e.id === newId)) {
+                alert('このIDは既に使用されています');
+                return;
+              }
+              
+              const emp = App.employees.find(e => e.id === oldId);
+              emp.id = newId;
+              App.save();
+              alert('IDを「' + newId + '」に変更しました');
+              self.render('employeeMaster');
+            });
+          });
+
+          // 従業員削除
+          document.querySelectorAll('.delete-emp-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const empId = this.getAttribute('data-emp');
+              const emp = App.employees.find(e => e.id === empId);
+              
+              if (!confirm('「' + emp.name + '」を削除しますか？\n\n※ 削除済み一覧から復旧できます')) {
+                return;
+              }
+              
+              // 削除済みリストに移動
+              emp.deletedAt = new Date().toISOString();
+              App.deletedEmployees.push(emp);
+              App.employees = App.employees.filter(e => e.id !== empId);
+              App.save();
+              alert('削除しました');
+              self.render('employeeMaster');
+            });
+          });
+
+          // 従業員復旧
+          document.querySelectorAll('.restore-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const empId = this.getAttribute('data-emp');
+              const emp = App.deletedEmployees.find(e => e.id === empId);
+              
+              if (!confirm('「' + emp.name + '」を復旧しますか？')) {
+                return;
+              }
+              
+              // 従業員リストに戻す
+              delete emp.deletedAt;
+              App.employees.push(emp);
+              App.deletedEmployees = App.deletedEmployees.filter(e => e.id !== empId);
+              App.save();
+              alert('復旧しました');
               self.render('employeeMaster');
             });
           });
@@ -1909,6 +5884,154 @@
               self.render('correctionList');
             });
           });
+        }
+
+        // 住所変更依頼一覧
+        if (view === 'addressRequestList') {
+          document.querySelectorAll('.confirm-address-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const requestId = this.getAttribute('data-request');
+              
+              if (!confirm('この住所変更届を確認済みとして削除しますか？\n（削除後は復元できません）')) return;
+
+              // 完全に削除
+              App.addressRequests = App.addressRequests.filter(r => r.id !== requestId);
+              App.save();
+              alert('確認済みとして削除しました。');
+              self.render('addressRequestList');
+            });
+          });
+        }
+
+        // CSVエクスポート
+        if (view === 'csvExport') {
+          const exportMonth = document.getElementById('exportMonth');
+          const previewCount = document.getElementById('previewCount');
+          const exportBtn = document.getElementById('exportCsvBtn');
+
+          // プレビュー更新
+          function updatePreview() {
+            const month = exportMonth.value;
+            const records = App.records.filter(r => r.workDate && r.workDate.startsWith(month));
+            previewCount.textContent = records.length;
+          }
+
+          if (exportMonth) {
+            exportMonth.addEventListener('change', updatePreview);
+            updatePreview();
+          }
+
+          if (exportBtn) {
+            exportBtn.addEventListener('click', function() {
+              const month = exportMonth.value;
+              const exportType = document.querySelector('input[name="exportType"]:checked').value;
+              const records = App.records.filter(r => r.workDate && r.workDate.startsWith(month));
+
+              if (records.length === 0) {
+                alert('選択した月のデータがありません');
+                return;
+              }
+
+              // 法定休憩時間を計算する関数
+              function getBreakHours(workHours) {
+                if (workHours <= 6) return 0;
+                if (workHours <= 8) return 0.75; // 45分
+                return 1; // 60分
+              }
+
+              let csv = '';
+              const BOM = '\uFEFF';
+
+              if (exportType === 'daily') {
+                // 出勤一覧
+                csv = '日付,従業員名,役割,現場名,始業時刻,終業時刻,勤務時間,休憩時間,実働時間,時給,日給,メモ\n';
+                records.sort((a, b) => a.workDate.localeCompare(b.workDate)).forEach(r => {
+                  const emp = App.employees.find(e => e.name === r.employeeName);
+                  const role = emp ? (emp.role === 'parttime' ? 'アルバイト' : (emp.role === 'manager' ? '責任者' : '作業員')) : '作業員';
+                  const isParttime = emp && emp.role === 'parttime';
+                  const workHours = r.workHours || 0;
+                  const breakHours = isParttime ? getBreakHours(workHours) : 0;
+                  const actualHours = Math.max(0, workHours - breakHours);
+                  // 記録に時給があればそれを使う
+                  const recordRate = r.hourlyRate || (emp ? emp.hourlyRate : 0);
+                  const dailyPay = isParttime ? Math.round(actualHours * recordRate) : (emp ? emp.dailyRate : 15000);
+                  csv += `${r.workDate},${r.employeeName},${role},${r.jobSiteName},${App.formatTime(r.clockInTime)},${App.formatTime(r.clockOutTime)},${workHours.toFixed(1)},${breakHours.toFixed(2)},${actualHours.toFixed(1)},${isParttime ? recordRate : '-'},${dailyPay},"${r.memo || ''}"\n`;
+                });
+              } else if (exportType === 'summary') {
+                // 月次集計
+                csv = '従業員名,役割,始業日数,合計勤務時間,合計休憩時間,合計実働時間,給与概算\n';
+                const summary = {};
+                records.forEach(r => {
+                  if (!summary[r.employeeName]) {
+                    const emp = App.employees.find(e => e.name === r.employeeName);
+                    summary[r.employeeName] = {
+                      days: 0,
+                      hours: 0,
+                      breakHours: 0,
+                      actualHours: 0,
+                      totalPay: 0,
+                      role: emp ? emp.role : 'worker',
+                      dailyRate: emp ? emp.dailyRate : 15000,
+                      hourlyRate: emp ? emp.hourlyRate : 0
+                    };
+                  }
+                  if (r.status === 'completed') {
+                    const workHours = r.workHours || 0;
+                    const isParttime = summary[r.employeeName].role === 'parttime';
+                    const breakHours = isParttime ? getBreakHours(workHours) : 0;
+                    const actualHours = Math.max(0, workHours - breakHours);
+                    summary[r.employeeName].days++;
+                    summary[r.employeeName].hours += workHours;
+                    summary[r.employeeName].breakHours += breakHours;
+                    summary[r.employeeName].actualHours += actualHours;
+                    // 記録の時給で計算（アルバイト）、または日当（正社員）
+                    if (isParttime) {
+                      const recordRate = r.hourlyRate || summary[r.employeeName].hourlyRate;
+                      summary[r.employeeName].totalPay += Math.round(actualHours * recordRate);
+                    } else {
+                      summary[r.employeeName].totalPay += summary[r.employeeName].dailyRate;
+                    }
+                  }
+                });
+                Object.keys(summary).forEach(name => {
+                  const s = summary[name];
+                  const roleText = s.role === 'parttime' ? 'アルバイト' : (s.role === 'manager' ? '責任者' : '作業員');
+                  csv += `${name},${roleText},${s.days},${s.hours.toFixed(1)},${s.breakHours.toFixed(1)},${s.actualHours.toFixed(1)},${s.totalPay}\n`;
+                });
+              } else if (exportType === 'site') {
+                // 現場別集計
+                csv = '現場名,始業人数,合計人日,従業員一覧\n';
+                const siteSummary = {};
+                records.forEach(r => {
+                  if (!siteSummary[r.jobSiteName]) {
+                    siteSummary[r.jobSiteName] = {
+                      count: 0,
+                      workers: []
+                    };
+                  }
+                  if (r.status === 'completed') {
+                    siteSummary[r.jobSiteName].count++;
+                    if (!siteSummary[r.jobSiteName].workers.includes(r.employeeName)) {
+                      siteSummary[r.jobSiteName].workers.push(r.employeeName);
+                    }
+                  }
+                });
+                Object.keys(siteSummary).forEach(site => {
+                  const s = siteSummary[site];
+                  csv += `${site},${s.workers.length},${s.count},"${s.workers.join('、')}"\n`;
+                });
+              }
+
+              // ダウンロード
+              const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `勤怠_${month}_${exportType}.csv`;
+              link.click();
+              URL.revokeObjectURL(url);
+            });
+          }
         }
       }
     };
