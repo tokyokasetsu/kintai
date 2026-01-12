@@ -5191,10 +5191,8 @@
         if (view === 'adminSettings') {
           // ID変更
           const changeIdBtn = document.getElementById('changeIdBtn');
-          alert('adminSettings画面: changeIdBtn = ' + (changeIdBtn ? 'あり' : 'なし'));
           if (changeIdBtn) {
             changeIdBtn.addEventListener('click', function() {
-              alert('ID変更ボタンがクリックされました');
               const newIdInput = document.getElementById('newIdInput');
               const newId = newIdInput ? newIdInput.value.trim() : '';
               
@@ -5437,7 +5435,7 @@
 
         // 管理者画面
         if (view === 'admin') {
-          document.querySelectorAll('.menu-card').forEach(function(card) {
+          document.querySelectorAll('.menu-card, .menu-card-wide').forEach(function(card) {
             card.addEventListener('click', function() {
               const targetView = this.getAttribute('data-view');
               if (targetView) {
@@ -5501,7 +5499,7 @@
 
         // 副管理者画面
         if (view === 'subadmin') {
-          document.querySelectorAll('.menu-card').forEach(function(card) {
+          document.querySelectorAll('.menu-card, .menu-card-wide').forEach(function(card) {
             card.addEventListener('click', function() {
               const targetView = this.getAttribute('data-view');
               if (targetView) {
