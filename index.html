@@ -5191,8 +5191,10 @@
         if (view === 'adminSettings') {
           // ID変更
           const changeIdBtn = document.getElementById('changeIdBtn');
+          alert('adminSettings画面: changeIdBtn = ' + (changeIdBtn ? 'あり' : 'なし'));
           if (changeIdBtn) {
             changeIdBtn.addEventListener('click', function() {
+              alert('ID変更ボタンがクリックされました');
               const newIdInput = document.getElementById('newIdInput');
               const newId = newIdInput ? newIdInput.value.trim() : '';
               
