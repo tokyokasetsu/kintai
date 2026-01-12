@@ -152,6 +152,79 @@
       font-size: 14px;
       color: #94a3b8;
     }
+    /* お知らせ表示（一般ユーザー） */
+    .user-announcement {
+      background-color: rgba(239, 68, 68, 0.15);
+      border: 1px solid #ef4444;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      font-size: 12px;
+      color: #f87171;
+      text-align: center;
+    }
+    /* お知らせ送信（管理者） */
+    .announcement-section {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .announcement-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin-bottom: 12px;
+    }
+    .announcement-form {
+      display: flex;
+      gap: 8px;
+    }
+    .announcement-input {
+      flex: 1;
+      padding: 10px 12px;
+      background-color: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 14px;
+    }
+    .send-announcement-btn {
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .current-announcement {
+      background-color: rgba(239, 68, 68, 0.1);
+      border: 1px solid #ef4444;
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .current-announcement-text {
+      color: #f87171;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    .current-announcement-date {
+      color: #94a3b8;
+      font-size: 11px;
+      margin-bottom: 10px;
+    }
+    .cancel-announcement-btn {
+      width: 100%;
+      padding: 8px;
+      background-color: #475569;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-size: 13px;
+      cursor: pointer;
+    }
     
     /* ホーム画面 */
     .home-content {
@@ -283,15 +356,12 @@
       color: #f1f5f9;
     }
     .calendar-toggle-btn {
-      position: absolute;
-      right: 12px;
-      top: 50%;
-      transform: translateY(-50%);
       background: none;
-      border: none;
-      font-size: 20px;
+      border: 1px solid #475569;
+      border-radius: 8px;
+      font-size: 18px;
       cursor: pointer;
-      padding: 4px;
+      padding: 6px 10px;
     }
     .calendar-popup {
       position: fixed;
@@ -1912,6 +1982,228 @@
     .edit-save-btn:active {
       background-color: #2563eb;
     }
+    /* 古情報削除画面 */
+    .cleanup-section {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .cleanup-section.danger {
+      border: 1px solid #ef4444;
+    }
+    .cleanup-stats {
+      margin-top: 12px;
+    }
+    .cleanup-stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #334155;
+      font-size: 14px;
+      color: #f1f5f9;
+    }
+    .cleanup-stat-row:last-child {
+      border-bottom: none;
+    }
+    .cleanup-option {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      background-color: #0f172a;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .cleanup-option-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .cleanup-option-title {
+      font-size: 14px;
+      color: #f1f5f9;
+    }
+    .cleanup-option-count {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .cleanup-btn {
+      padding: 8px 16px;
+      background-color: #475569;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .cleanup-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .cleanup-btn.danger {
+      background-color: #dc2626;
+      width: 100%;
+      padding: 14px;
+      font-size: 14px;
+      margin-top: 12px;
+    }
+    .cleanup-warning {
+      font-size: 13px;
+      color: #f87171;
+      margin-bottom: 8px;
+    }
+    .backup-desc {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 16px;
+    }
+    .backup-buttons {
+      display: flex;
+      gap: 12px;
+    }
+    .backup-btn {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+    }
+    .backup-btn.export {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+    }
+    .backup-btn.import {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* お知らせ機能 */
+    .announcement-section {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .announcement-section.current {
+      border: 1px solid #f59e0b;
+    }
+    .announcement-desc {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 16px;
+    }
+    .announcement-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .announcement-input {
+      width: 100%;
+      min-height: 100px;
+      padding: 12px;
+      background-color: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 14px;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    .announcement-btn {
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .announcement-btn.send {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+    }
+    .announcement-btn.cancel {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+    }
+    .current-announcement {
+      background-color: #0f172a;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .current-announcement-text {
+      font-size: 14px;
+      color: #f1f5f9;
+      white-space: pre-wrap;
+      margin-bottom: 8px;
+    }
+    .current-announcement-date {
+      font-size: 11px;
+      color: #64748b;
+    }
+    .no-announcement {
+      font-size: 14px;
+      color: #64748b;
+      text-align: center;
+      padding: 20px;
+    }
+    .home-announcement {
+      background-color: rgba(239, 68, 68, 0.1);
+      border: 1px solid #ef4444;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 16px;
+    }
+    .home-announcement-text {
+      font-size: 12px;
+      color: #ef4444;
+      white-space: pre-wrap;
+    }
+    .site-delete-list {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 12px;
+    }
+    .site-delete-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background-color: #0f172a;
+      border-radius: 8px;
+      margin-bottom: 6px;
+    }
+    .site-delete-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      flex: 1;
+    }
+    .site-delete-checkbox input {
+      width: 18px;
+      height: 18px;
+      accent-color: #3b82f6;
+    }
+    .site-delete-name {
+      font-size: 13px;
+      color: #f1f5f9;
+    }
+    .site-delete-info {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .delete-selected-sites {
+      width: 100%;
+      background-color: #dc2626;
+      margin-top: 8px;
+    }
     .export-section {
       background-color: #1e293b;
       border-radius: 12px;
@@ -2624,10 +2916,10 @@
         { id: '5', name: '松川 敦', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
         { id: '6', name: '小関 弘志', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
         { id: '7', name: '青山 海斗', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
-        { id: '8', name: '戸塚 力', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
-        { id: '9', name: '戸塚 志保', role: 'parttime', dailyRate: 0, hourlyRate: 1200, isActive: true, password: '1234', paidLeaveDate: '' },
-        { id: '10', name: '月精 晃大', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
-        { id: '11', name: '渡部 直人', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '8', name: '月精 晃大', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '9', name: '渡部 直人', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '10', name: '戸塚 力', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '11', name: '戸塚 志保', role: 'parttime', dailyRate: 0, hourlyRate: 1200, isActive: true, password: '1234', paidLeaveDate: '' },
         { id: 'admin', name: '戸塚 仁', role: 'admin', dailyRate: 0, hourlyRate: 0, isActive: true, password: 'admin', paidLeaveDate: '' }
       ]),
       jobSites: Storage.get('jobsites', [
@@ -2644,6 +2936,8 @@
       // 現場収支データ（現場ID_段階_月をキーとして管理）
       // 段階: scaffolding(足場架け), completion(完工)
       siteFinanceData: Storage.get('siteFinanceData', {}),
+      // 管理者からのお知らせ
+      announcement: Storage.get('announcement', null),
       gpsLocation: null,
       selectedDate: new Date().toISOString().split('T')[0],
       selectedSiteDate: new Date().toISOString().split('T')[0],
@@ -2658,6 +2952,7 @@
         Storage.set('deletedEmployees', this.deletedEmployees);
         Storage.set('siteDailyReports', this.siteDailyReports);
         Storage.set('siteFinanceData', this.siteFinanceData);
+        Storage.set('announcement', this.announcement);
       },
       
       // 現場日報のキー生成
@@ -3162,6 +3457,7 @@
             ${calendarHtml}
           </div>
           <div class="home-content">
+            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.message}</p></div>` : ''}
             ${paidLeaveHtml}
             <div class="greeting">
               <p class="greeting-text">${App.getGreeting()}</p>
@@ -3553,7 +3849,32 @@
                   <span class="menu-icon">📊</span>
                   <span>CSVエクスポート</span>
                 </button>
+                <button class="menu-card" data-view="dataManagement">
+                  <span class="menu-icon">💾</span>
+                  <span>データ管理</span>
+                </button>
+                <button class="menu-card ${App.announcement ? 'has-alert' : ''}" data-view="announcement">
+                  <span class="menu-icon">📢</span>
+                  <span>お知らせ送信${App.announcement ? '（配信中）' : ''}</span>
+                </button>
               </div>
+              
+              <div class="announcement-section">
+                <h3 class="announcement-title">📢 全員へお知らせ</h3>
+                ${App.announcement ? `
+                  <div class="current-announcement">
+                    <p class="current-announcement-text">${App.announcement.message}</p>
+                    <p class="current-announcement-date">送信: ${new Date(App.announcement.createdAt).toLocaleString('ja-JP')}</p>
+                    <button id="cancelAnnouncement" class="cancel-announcement-btn">取り消し</button>
+                  </div>
+                ` : `
+                  <div class="announcement-form">
+                    <input type="text" id="announcementInput" class="announcement-input" placeholder="メッセージを入力...">
+                    <button id="sendAnnouncement" class="send-announcement-btn">送信</button>
+                  </div>
+                `}
+              </div>
+              
               <button class="menu-card-wide" data-view="adminSettings">
                 <span class="menu-icon">⚙️</span>
                 <span>ID・パスワード変更</span>
@@ -3588,6 +3909,7 @@
             <span class="header-title">管理者（副）メニュー</span>
           </div>
           <div class="admin-content">
+            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.message}</p></div>` : ''}
             <p class="admin-date">${App.formatDate(App.getToday())}</p>
             
             <div class="subadmin-clockin-section">
@@ -4364,6 +4686,180 @@
         `;
       },
 
+      announcement: function() {
+        const currentAnnouncement = App.announcement;
+        
+        return `
+          <div class="header">
+            <button id="backBtn" class="back-btn">← 戻る</button>
+            <span class="header-title">お知らせ送信</span>
+          </div>
+          <div class="list-content">
+            <div class="announcement-section">
+              <h3 class="form-title">📢 全従業員へお知らせ</h3>
+              <p class="announcement-desc">入力した内容が全従業員のホーム画面に表示されます。</p>
+              
+              <div class="announcement-form">
+                <textarea id="announcementText" class="announcement-input" placeholder="お知らせ内容を入力&#10;例：1/15（水）22:00〜24:00 システムメンテナンスのためご利用いただけません">${currentAnnouncement ? currentAnnouncement.message : ''}</textarea>
+                <button id="sendAnnouncementBtn" class="announcement-btn send">📤 お知らせを送信</button>
+              </div>
+            </div>
+            
+            ${currentAnnouncement ? `
+              <div class="announcement-section current">
+                <h3 class="form-title">📌 現在配信中のお知らせ</h3>
+                <div class="current-announcement">
+                  <p class="current-announcement-text">${currentAnnouncement.message}</p>
+                  <p class="current-announcement-date">送信日時: ${new Date(currentAnnouncement.createdAt).toLocaleString('ja-JP')}</p>
+                </div>
+                <button id="cancelAnnouncementBtn" class="announcement-btn cancel">🗑️ お知らせを取り消す</button>
+              </div>
+            ` : `
+              <div class="announcement-section">
+                <p class="no-announcement">現在配信中のお知らせはありません</p>
+              </div>
+            `}
+          </div>
+        `;
+      },
+
+      dataManagement: function() {
+        // 勤怠記録の件数
+        const recordCount = App.records.length;
+        // 現場数
+        const siteCount = App.jobSites.length;
+        // 終了現場数
+        const completedSiteCount = App.jobSites.filter(s => s.completedDate).length;
+        // 修正依頼の件数
+        const correctionCount = App.corrections.length;
+        // 住所変更届の件数
+        const addressRequestCount = App.addressRequests.length;
+        
+        // 古い勤怠記録（1年以上前）
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+        const oldRecordCount = App.records.filter(r => r.workDate < oneYearAgoStr).length;
+        
+        // 6ヶ月以上前
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
+        const oldRecordCount6m = App.records.filter(r => r.workDate < sixMonthsAgoStr).length;
+
+        return `
+          <div class="header">
+            <button id="backBtn" class="back-btn">← 戻る</button>
+            <span class="header-title">データ管理</span>
+          </div>
+          <div class="list-content">
+            <div class="cleanup-section">
+              <h3 class="form-title">💾 バックアップ・復元</h3>
+              <p class="backup-desc">データのバックアップを取っておくと、ブラウザのキャッシュ削除時やバージョンアップ時に復元できます。</p>
+              <div class="backup-buttons">
+                <button class="backup-btn export" id="exportBackup">📥 バックアップ出力</button>
+                <label class="backup-btn import">
+                  📤 バックアップ復元
+                  <input type="file" id="importBackup" accept=".json" style="display:none;">
+                </label>
+              </div>
+            </div>
+            
+            <div class="cleanup-section">
+              <h3 class="form-title">📊 現在のデータ量</h3>
+              <div class="cleanup-stats">
+                <div class="cleanup-stat-row">
+                  <span>勤怠記録</span>
+                  <span>${recordCount}件</span>
+                </div>
+                <div class="cleanup-stat-row">
+                  <span>現場</span>
+                  <span>${siteCount}件（終了: ${completedSiteCount}件）</span>
+                </div>
+                <div class="cleanup-stat-row">
+                  <span>修正依頼</span>
+                  <span>${correctionCount}件</span>
+                </div>
+                <div class="cleanup-stat-row">
+                  <span>住所変更届</span>
+                  <span>${addressRequestCount}件</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="cleanup-section">
+              <h3 class="form-title">🏢 現場を選んで削除</h3>
+              <div class="site-delete-list">
+                ${App.jobSites.map(site => {
+                  const recordsForSite = App.records.filter(r => r.jobSiteName === site.name).length;
+                  const status = site.completedDate ? '終了' : (site.scaffoldingDone ? '架け済' : '稼働中');
+                  return `
+                    <div class="site-delete-item">
+                      <label class="site-delete-checkbox">
+                        <input type="checkbox" class="site-checkbox" data-site-id="${site.id}">
+                        <span class="site-delete-name">${site.name}</span>
+                      </label>
+                      <span class="site-delete-info">${status}・${recordsForSite}件</span>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+              <button class="cleanup-btn delete-selected-sites" id="deleteSelectedSites">選択した現場を削除</button>
+            </div>
+            
+            <div class="cleanup-section">
+              <h3 class="form-title">🗑️ 古情報削除</h3>
+              
+              <div class="cleanup-option">
+                <div class="cleanup-option-info">
+                  <span class="cleanup-option-title">6ヶ月以上前の勤怠記録</span>
+                  <span class="cleanup-option-count">${oldRecordCount6m}件</span>
+                </div>
+                <button class="cleanup-btn" id="deleteOldRecords6m" ${oldRecordCount6m === 0 ? 'disabled' : ''}>削除</button>
+              </div>
+              
+              <div class="cleanup-option">
+                <div class="cleanup-option-info">
+                  <span class="cleanup-option-title">1年以上前の勤怠記録</span>
+                  <span class="cleanup-option-count">${oldRecordCount}件</span>
+                </div>
+                <button class="cleanup-btn" id="deleteOldRecords1y" ${oldRecordCount === 0 ? 'disabled' : ''}>削除</button>
+              </div>
+              
+              <div class="cleanup-option">
+                <div class="cleanup-option-info">
+                  <span class="cleanup-option-title">終了した現場</span>
+                  <span class="cleanup-option-count">${completedSiteCount}件</span>
+                </div>
+                <button class="cleanup-btn" id="deleteCompletedSites" ${completedSiteCount === 0 ? 'disabled' : ''}>削除</button>
+              </div>
+              
+              <div class="cleanup-option">
+                <div class="cleanup-option-info">
+                  <span class="cleanup-option-title">処理済み修正依頼</span>
+                  <span class="cleanup-option-count">${App.corrections.filter(c => c.status !== 'pending').length}件</span>
+                </div>
+                <button class="cleanup-btn" id="deleteProcessedCorrections" ${App.corrections.filter(c => c.status !== 'pending').length === 0 ? 'disabled' : ''}>削除</button>
+              </div>
+              
+              <div class="cleanup-option">
+                <div class="cleanup-option-info">
+                  <span class="cleanup-option-title">住所変更届（全件）</span>
+                  <span class="cleanup-option-count">${addressRequestCount}件</span>
+                </div>
+                <button class="cleanup-btn" id="deleteAddressRequests" ${addressRequestCount === 0 ? 'disabled' : ''}>削除</button>
+              </div>
+            </div>
+            
+            <div class="cleanup-section danger">
+              <h3 class="form-title">⚠️ 全データリセット</h3>
+              <p class="cleanup-warning">すべてのデータを削除し、初期状態に戻します。この操作は取り消せません。</p>
+              <button class="cleanup-btn danger" id="resetAllData">全データをリセット</button>
+            </div>
+          </div>
+        `;
+      },
+
       csvExport: function() {
         // 月の選択肢を生成（過去12ヶ月）
         let monthOptions = '';
@@ -4817,14 +5313,11 @@
               if (customJobSite.value.trim()) {
                 let inputName = customJobSite.value.trim();
                 
-                // デバッグ
-                alert("入力: " + inputName + "\n現場一覧: " + App.jobSites.map(s => s.name).join(", "));
-                
                 // 類似現場名をチェック（漢字2文字以上一致）
                 const similarSite = App.findSimilarSite(inputName);
-                alert("類似現場: " + (similarSite || "なし"));
                 
                 if (similarSite) {
+                  alert("類似現場: " + similarSite);
                   if (confirm(`「${similarSite}」の現場ではありませんか？\n\n[OK] → 「${similarSite}」を使用\n[キャンセル] → 「${inputName}」で新規登録`)) {
                     siteName = similarSite;
                   } else {
@@ -4946,6 +5439,38 @@
               }
             });
           });
+
+          // お知らせ送信
+          const sendAnnouncement = document.getElementById('sendAnnouncement');
+          if (sendAnnouncement) {
+            sendAnnouncement.addEventListener('click', function() {
+              const input = document.getElementById('announcementInput');
+              const message = input.value.trim();
+              if (!message) {
+                alert('メッセージを入力してください');
+                return;
+              }
+              App.announcement = {
+                message: message,
+                createdAt: new Date().toISOString()
+              };
+              App.save();
+              alert('お知らせを送信しました');
+              self.render('admin');
+            });
+          }
+
+          // お知らせ取り消し
+          const cancelAnnouncement = document.getElementById('cancelAnnouncement');
+          if (cancelAnnouncement) {
+            cancelAnnouncement.addEventListener('click', function() {
+              if (confirm('お知らせを取り消しますか？')) {
+                App.announcement = null;
+                App.save();
+                self.render('admin');
+              }
+            });
+          }
 
           // 管理者の出勤ボタン
           const adminClockIn = document.getElementById('adminClockIn');
@@ -5901,6 +6426,279 @@
               self.render('addressRequestList');
             });
           });
+        }
+
+        // お知らせ送信
+        if (view === 'announcement') {
+          const announcementText = document.getElementById('announcementText');
+          const sendBtn = document.getElementById('sendAnnouncementBtn');
+          const cancelBtn = document.getElementById('cancelAnnouncementBtn');
+          
+          if (sendBtn) {
+            sendBtn.addEventListener('click', function() {
+              const message = announcementText.value.trim();
+              if (!message) {
+                alert('お知らせ内容を入力してください');
+                return;
+              }
+              
+              if (confirm('このお知らせを全従業員に送信しますか？\n\n' + message)) {
+                App.announcement = {
+                  message: message,
+                  createdAt: new Date().toISOString()
+                };
+                App.save();
+                alert('お知らせを送信しました');
+                self.render('announcement');
+              }
+            });
+          }
+          
+          if (cancelBtn) {
+            cancelBtn.addEventListener('click', function() {
+              if (confirm('お知らせを取り消しますか？\n全従業員の画面から非表示になります。')) {
+                App.announcement = null;
+                App.save();
+                alert('お知らせを取り消しました');
+                self.render('announcement');
+              }
+            });
+          }
+        }
+
+        // データ管理
+        if (view === 'dataManagement') {
+          // バックアップ出力
+          const exportBackup = document.getElementById('exportBackup');
+          if (exportBackup) {
+            exportBackup.addEventListener('click', function() {
+              const backupData = {
+                exportDate: new Date().toISOString(),
+                version: '1.0',
+                data: {
+                  employees: App.employees,
+                  jobSites: App.jobSites,
+                  records: App.records,
+                  corrections: App.corrections,
+                  addressRequests: App.addressRequests,
+                  siteDailyReports: App.siteDailyReports,
+                  siteFinanceData: App.siteFinanceData,
+                  deletedEmployees: App.deletedEmployees
+                }
+              };
+              
+              const json = JSON.stringify(backupData, null, 2);
+              const blob = new Blob([json], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              
+              const today = new Date().toISOString().split('T')[0];
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'kintai_backup_' + today + '.json';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+              
+              alert('バックアップファイルをダウンロードしました');
+            });
+          }
+          
+          // バックアップ復元
+          const importBackup = document.getElementById('importBackup');
+          if (importBackup) {
+            importBackup.addEventListener('change', function(e) {
+              const file = e.target.files[0];
+              if (!file) return;
+              
+              const reader = new FileReader();
+              reader.onload = function(event) {
+                try {
+                  const backupData = JSON.parse(event.target.result);
+                  
+                  if (!backupData.data) {
+                    alert('無効なバックアップファイルです');
+                    return;
+                  }
+                  
+                  const exportDate = backupData.exportDate ? new Date(backupData.exportDate).toLocaleString('ja-JP') : '不明';
+                  
+                  if (confirm('バックアップを復元しますか？\n\n出力日時: ' + exportDate + '\n\n現在のデータは上書きされます。')) {
+                    if (backupData.data.employees) App.employees = backupData.data.employees;
+                    if (backupData.data.jobSites) App.jobSites = backupData.data.jobSites;
+                    if (backupData.data.records) App.records = backupData.data.records;
+                    if (backupData.data.corrections) App.corrections = backupData.data.corrections;
+                    if (backupData.data.addressRequests) App.addressRequests = backupData.data.addressRequests;
+                    if (backupData.data.siteDailyReports) App.siteDailyReports = backupData.data.siteDailyReports;
+                    if (backupData.data.siteFinanceData) App.siteFinanceData = backupData.data.siteFinanceData;
+                    if (backupData.data.deletedEmployees) App.deletedEmployees = backupData.data.deletedEmployees;
+                    
+                    App.save();
+                    alert('バックアップを復元しました');
+                    self.render('dataManagement');
+                  }
+                } catch (err) {
+                  alert('ファイルの読み込みに失敗しました');
+                }
+              };
+              reader.readAsText(file);
+            });
+          }
+          
+          // 6ヶ月以上前の勤怠記録削除
+          const deleteOldRecords6m = document.getElementById('deleteOldRecords6m');
+          if (deleteOldRecords6m) {
+            deleteOldRecords6m.addEventListener('click', function() {
+              const sixMonthsAgo = new Date();
+              sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+              const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
+              const count = App.records.filter(r => r.workDate < sixMonthsAgoStr).length;
+              
+              if (confirm(`6ヶ月以上前の勤怠記録 ${count}件 を削除しますか？\nこの操作は取り消せません。`)) {
+                App.records = App.records.filter(r => r.workDate >= sixMonthsAgoStr);
+                App.save();
+                alert(`${count}件の勤怠記録を削除しました`);
+                self.render('dataManagement');
+              }
+            });
+          }
+          
+          // 1年以上前の勤怠記録削除
+          const deleteOldRecords1y = document.getElementById('deleteOldRecords1y');
+          if (deleteOldRecords1y) {
+            deleteOldRecords1y.addEventListener('click', function() {
+              const oneYearAgo = new Date();
+              oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+              const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+              const count = App.records.filter(r => r.workDate < oneYearAgoStr).length;
+              
+              if (confirm(`1年以上前の勤怠記録 ${count}件 を削除しますか？\nこの操作は取り消せません。`)) {
+                App.records = App.records.filter(r => r.workDate >= oneYearAgoStr);
+                App.save();
+                alert(`${count}件の勤怠記録を削除しました`);
+                self.render('dataManagement');
+              }
+            });
+          }
+          
+          // 終了した現場削除
+          const deleteCompletedSites = document.getElementById('deleteCompletedSites');
+          if (deleteCompletedSites) {
+            deleteCompletedSites.addEventListener('click', function() {
+              const completedSites = App.jobSites.filter(s => s.completedDate);
+              const count = completedSites.length;
+              
+              if (confirm(`終了した現場 ${count}件 を削除しますか？\n関連する収支データも削除されます。\nこの操作は取り消せません。`)) {
+                const completedIds = completedSites.map(s => s.id);
+                App.jobSites = App.jobSites.filter(s => !s.completedDate);
+                // 関連する収支データも削除
+                completedIds.forEach(id => {
+                  Object.keys(App.siteFinanceData).forEach(key => {
+                    if (key.startsWith(id + '_')) {
+                      delete App.siteFinanceData[key];
+                    }
+                  });
+                });
+                App.save();
+                alert(`${count}件の終了現場を削除しました`);
+                self.render('dataManagement');
+              }
+            });
+          }
+          
+          // 処理済み修正依頼削除
+          const deleteProcessedCorrections = document.getElementById('deleteProcessedCorrections');
+          if (deleteProcessedCorrections) {
+            deleteProcessedCorrections.addEventListener('click', function() {
+              const count = App.corrections.filter(c => c.status !== 'pending').length;
+              
+              if (confirm(`処理済みの修正依頼 ${count}件 を削除しますか？`)) {
+                App.corrections = App.corrections.filter(c => c.status === 'pending');
+                App.save();
+                alert(`${count}件の修正依頼を削除しました`);
+                self.render('dataManagement');
+              }
+            });
+          }
+          
+          // 住所変更届削除
+          const deleteAddressRequests = document.getElementById('deleteAddressRequests');
+          if (deleteAddressRequests) {
+            deleteAddressRequests.addEventListener('click', function() {
+              const count = App.addressRequests.length;
+              
+              if (confirm(`住所変更届 ${count}件 を削除しますか？`)) {
+                App.addressRequests = [];
+                App.save();
+                alert(`${count}件の住所変更届を削除しました`);
+                self.render('dataManagement');
+              }
+            });
+          }
+          
+          // 選択した現場を削除
+          const deleteSelectedSites = document.getElementById('deleteSelectedSites');
+          if (deleteSelectedSites) {
+            deleteSelectedSites.addEventListener('click', function() {
+              const checkedBoxes = document.querySelectorAll('.site-checkbox:checked');
+              if (checkedBoxes.length === 0) {
+                alert('削除する現場を選択してください');
+                return;
+              }
+              
+              const siteIds = Array.from(checkedBoxes).map(cb => cb.getAttribute('data-site-id'));
+              const siteNames = siteIds.map(id => {
+                const site = App.jobSites.find(s => s.id === id);
+                return site ? site.name : '';
+              }).filter(n => n);
+              
+              if (confirm(`以下の現場を削除しますか？\n\n${siteNames.join('\n')}\n\n関連する勤怠記録・収支データも削除されます。`)) {
+                // 現場を削除
+                App.jobSites = App.jobSites.filter(s => !siteIds.includes(s.id));
+                
+                // 関連する勤怠記録を削除
+                siteNames.forEach(name => {
+                  App.records = App.records.filter(r => r.jobSiteName !== name);
+                });
+                
+                // 関連する収支データを削除
+                siteIds.forEach(id => {
+                  Object.keys(App.siteFinanceData).forEach(key => {
+                    if (key.startsWith(id + '_')) {
+                      delete App.siteFinanceData[key];
+                    }
+                  });
+                });
+                
+                // 関連する日報データを削除
+                siteNames.forEach(name => {
+                  Object.keys(App.siteDailyReports).forEach(key => {
+                    if (key.endsWith('_' + name)) {
+                      delete App.siteDailyReports[key];
+                    }
+                  });
+                });
+                
+                App.save();
+                alert(`${siteNames.length}件の現場を削除しました`);
+                self.render('dataManagement');
+              }
+            });
+          }
+          
+          // 全データリセット
+          const resetAllData = document.getElementById('resetAllData');
+          if (resetAllData) {
+            resetAllData.addEventListener('click', function() {
+              if (confirm('⚠️ 警告 ⚠️\n\n本当にすべてのデータを削除しますか？\n\n・勤怠記録\n・現場データ\n・収支データ\n・修正依頼\n・住所変更届\n\nすべて初期状態に戻ります。\nこの操作は取り消せません。')) {
+                if (confirm('最終確認：本当に削除してよろしいですか？')) {
+                  localStorage.clear();
+                  alert('全データを削除しました。\nページをリロードします。');
+                  location.reload();
+                }
+              }
+            });
+          }
         }
 
         // CSVエクスポート
