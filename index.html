@@ -5193,7 +5193,9 @@
           const changeIdBtn = document.getElementById('changeIdBtn');
           if (changeIdBtn) {
             changeIdBtn.addEventListener('click', function() {
-              const newId = document.getElementById('newIdInput').value.trim();
+              const newIdInput = document.getElementById('newIdInput');
+              const newId = newIdInput ? newIdInput.value.trim() : '';
+              
               if (!newId) {
                 alert('新しいIDを入力してください');
                 return;
@@ -5209,7 +5211,9 @@
               const oldId = App.currentUser.id;
               App.currentUser.id = newId;
               const emp = App.employees.find(e => e.id === oldId);
-              if (emp) emp.id = newId;
+              if (emp) {
+                emp.id = newId;
+              }
               App.save();
               alert('IDを「' + newId + '」に変更しました');
               self.render('adminSettings');
