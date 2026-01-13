@@ -9,6 +9,9 @@
   <title>勤怠管理【東京架設】</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <style>
     * {
       margin: 0;
@@ -2879,7 +2882,21 @@
       '2026-11-23': '勤労感謝の日'
     };
 
-    // データ管理
+    // Firebase設定
+    const firebaseConfig = {
+      apiKey: "AIzaSyBgf1LDvKEuvHsdfDXQ9oUoN5nOnl_ZLpY",
+      authDomain: "kintai-tokyokasetsu.firebaseapp.com",
+      projectId: "kintai-tokyokasetsu",
+      storageBucket: "kintai-tokyokasetsu.firebasestorage.app",
+      messagingSenderId: "521954488283",
+      appId: "1:521954488283:web:863b8b6c779b96406e01fe"
+    };
+
+    // Firebase初期化
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // データ管理（Firebase + LocalStorage ハイブリッド）
     const Storage = {
       get: function(key, defaultValue) {
         try {
@@ -2896,11 +2913,135 @@
       }
     };
 
+    // Firebase同期管理
+    const FirebaseSync = {
+      // Firestoreにデータを保存
+      saveToFirebase: async function(collection, data) {
+        try {
+          await db.collection(collection).doc('main').set(data);
+          console.log('Firebase保存成功:', collection);
+        } catch (error) {
+          console.error('Firebase保存エラー:', error);
+        }
+      },
+
+      // Firestoreからデータを読み込み
+      loadFromFirebase: async function(collection) {
+        try {
+          const doc = await db.collection(collection).doc('main').get();
+          if (doc.exists) {
+            return doc.data();
+          }
+          return null;
+        } catch (error) {
+          console.error('Firebase読み込みエラー:', error);
+          return null;
+        }
+      },
+
+      // 全データをFirebaseに保存
+      saveAllToFirebase: async function() {
+        const data = {
+          employees: App.employees,
+          jobSites: App.jobSites,
+          records: App.records,
+          corrections: App.corrections,
+          addressRequests: App.addressRequests,
+          deletedEmployees: App.deletedEmployees,
+          siteDailyReports: App.siteDailyReports,
+          siteFinanceData: App.siteFinanceData,
+          announcement: App.announcement,
+          lastUpdated: new Date().toISOString()
+        };
+        await this.saveToFirebase('kintaiData', data);
+      },
+
+      // Firebaseからデータを読み込んでAppに反映
+      loadAllFromFirebase: async function() {
+        const data = await this.loadFromFirebase('kintaiData');
+        if (data) {
+          if (data.employees) App.employees = data.employees;
+          if (data.jobSites) App.jobSites = data.jobSites;
+          if (data.records) App.records = data.records;
+          if (data.corrections) App.corrections = data.corrections;
+          if (data.addressRequests) App.addressRequests = data.addressRequests;
+          if (data.deletedEmployees) App.deletedEmployees = data.deletedEmployees;
+          if (data.siteDailyReports) App.siteDailyReports = data.siteDailyReports;
+          if (data.siteFinanceData) App.siteFinanceData = data.siteFinanceData;
+          if (data.announcement !== undefined) App.announcement = data.announcement;
+          
+          // ローカルにも保存
+          Storage.set('employees', App.employees);
+          Storage.set('jobsites', App.jobSites);
+          Storage.set('records', App.records);
+          Storage.set('corrections', App.corrections);
+          Storage.set('addressRequests', App.addressRequests);
+          Storage.set('deletedEmployees', App.deletedEmployees);
+          Storage.set('siteDailyReports', App.siteDailyReports);
+          Storage.set('siteFinanceData', App.siteFinanceData);
+          Storage.set('announcement', App.announcement);
+          
+          console.log('Firebaseからデータ読み込み完了');
+          return true;
+        }
+        return false;
+      },
+
+      // リアルタイム同期を開始
+      startRealtimeSync: function() {
+        db.collection('kintaiData').doc('main').onSnapshot((doc) => {
+          if (doc.exists) {
+            const data = doc.data();
+            const currentTime = new Date().toISOString();
+            
+            // 自分の更新でない場合のみ反映（2秒以内の更新は自分の可能性が高い）
+            if (data.lastUpdated && App.lastSaveTime) {
+              const updateTime = new Date(data.lastUpdated).getTime();
+              const saveTime = new Date(App.lastSaveTime).getTime();
+              if (Math.abs(updateTime - saveTime) < 2000) {
+                return; // 自分の更新なのでスキップ
+              }
+            }
+
+            // 他端末からの更新を反映
+            if (data.employees) App.employees = data.employees;
+            if (data.jobSites) App.jobSites = data.jobSites;
+            if (data.records) App.records = data.records;
+            if (data.corrections) App.corrections = data.corrections;
+            if (data.addressRequests) App.addressRequests = data.addressRequests;
+            if (data.deletedEmployees) App.deletedEmployees = data.deletedEmployees;
+            if (data.siteDailyReports) App.siteDailyReports = data.siteDailyReports;
+            if (data.siteFinanceData) App.siteFinanceData = data.siteFinanceData;
+            if (data.announcement !== undefined) App.announcement = data.announcement;
+
+            // ローカルにも保存
+            Storage.set('employees', App.employees);
+            Storage.set('jobsites', App.jobSites);
+            Storage.set('records', App.records);
+            Storage.set('corrections', App.corrections);
+            Storage.set('addressRequests', App.addressRequests);
+            Storage.set('deletedEmployees', App.deletedEmployees);
+            Storage.set('siteDailyReports', App.siteDailyReports);
+            Storage.set('siteFinanceData', App.siteFinanceData);
+            Storage.set('announcement', App.announcement);
+
+            console.log('リアルタイム同期: データ更新受信');
+            
+            // 現在の画面を再描画（ログイン画面以外）
+            if (App.currentView !== 'login' && App.currentUser) {
+              Views.render(App.currentView);
+            }
+          }
+        }, (error) => {
+          console.error('リアルタイム同期エラー:', error);
+        });
+      }
+    };
+
     // 強制リセット（バージョン管理）
-    const DATA_VERSION = 'v5_calendar';
+    const DATA_VERSION = 'v6_firebase';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
-      localStorage.removeItem('kintai_employees');
-      localStorage.removeItem('kintai_deletedEmployees');
+      // 新バージョン: LocalStorageをクリアしない（Firebaseからデータを取得するため）
       localStorage.setItem('kintai_version', DATA_VERSION);
     }
 
@@ -2908,18 +3049,19 @@
     const App = {
       currentUser: null,
       currentView: 'login',
+      lastSaveTime: null,
       employees: Storage.get('employees', [
         { id: '1', name: '椙山 圭', role: 'subadmin', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
         { id: '2', name: '寺本 亮祐', role: 'subadmin', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
         { id: '3', name: '椙山 良美', role: 'parttime', dailyRate: 0, hourlyRate: 1200, isActive: true, password: '1234', paidLeaveDate: '' },
         { id: '4', name: '松川 大輔', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
         { id: '5', name: '松川 敦', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
-        { id: '6', name: '小関 弘志', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '6', name: '古関 弘志', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
         { id: '7', name: '青山 海斗', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
         { id: '8', name: '月精 晃大', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
         { id: '9', name: '渡部 直人', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
-        { id: '10', name: '戸塚 力', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '' },
-        { id: '11', name: '戸塚 志保', role: 'parttime', dailyRate: 0, hourlyRate: 1200, isActive: true, password: '1234', paidLeaveDate: '' },
+        { id: '10', name: '戸塚 力', role: 'worker', dailyRate: 15000, hourlyRate: 0, isActive: true, password: '1234', paidLeaveDate: '', isPrivate: true },
+        { id: '11', name: '戸塚 志保', role: 'parttime', dailyRate: 0, hourlyRate: 1200, isActive: true, password: '1234', paidLeaveDate: '', isPrivate: true },
         { id: 'admin', name: '戸塚 仁', role: 'admin', dailyRate: 0, hourlyRate: 0, isActive: true, password: 'admin', paidLeaveDate: '' }
       ]),
       jobSites: Storage.get('jobsites', [
@@ -2931,12 +3073,8 @@
       corrections: Storage.get('corrections', []),
       addressRequests: Storage.get('addressRequests', []),
       deletedEmployees: Storage.get('deletedEmployees', []),
-      // 現場日報データ（日付_現場名をキーとして管理）
       siteDailyReports: Storage.get('siteDailyReports', {}),
-      // 現場収支データ（現場ID_段階_月をキーとして管理）
-      // 段階: scaffolding(足場架け), completion(完工)
       siteFinanceData: Storage.get('siteFinanceData', {}),
-      // 管理者からのお知らせ
       announcement: Storage.get('announcement', null),
       gpsLocation: null,
       selectedDate: new Date().toISOString().split('T')[0],
@@ -2944,6 +3082,7 @@
       historyMonth: null,
 
       save: function() {
+        // ローカル保存
         Storage.set('employees', this.employees);
         Storage.set('jobsites', this.jobSites);
         Storage.set('records', this.records);
@@ -2953,6 +3092,10 @@
         Storage.set('siteDailyReports', this.siteDailyReports);
         Storage.set('siteFinanceData', this.siteFinanceData);
         Storage.set('announcement', this.announcement);
+        
+        // Firebase保存（非同期）
+        this.lastSaveTime = new Date().toISOString();
+        FirebaseSync.saveAllToFirebase();
       },
       
       // 現場日報のキー生成
@@ -6838,8 +6981,35 @@
       }
     };
 
-    // アプリ起動
-    Views.render('login');
+    // アプリ起動（Firebase初期化を待つ）
+    async function initApp() {
+      // ローディング表示
+      document.getElementById('app').innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;"><div style="font-size:48px;margin-bottom:20px;">⏳</div><div style="color:#94a3b8;">データ同期中...</div></div>';
+      
+      try {
+        // Firebaseからデータを読み込み
+        const loaded = await FirebaseSync.loadAllFromFirebase();
+        
+        if (!loaded) {
+          // Firebaseにデータがない場合、ローカルデータをアップロード
+          console.log('Firebaseにデータなし。ローカルデータをアップロード...');
+          await FirebaseSync.saveAllToFirebase();
+        }
+        
+        // リアルタイム同期を開始
+        FirebaseSync.startRealtimeSync();
+        
+        // ログイン画面を表示
+        Views.render('login');
+        
+      } catch (error) {
+        console.error('初期化エラー:', error);
+        // エラーでもローカルデータでログイン画面を表示
+        Views.render('login');
+      }
+    }
+
+    initApp();
   </script>
 </body>
 </html>
