@@ -5222,7 +5222,14 @@
               });
               App.save();
               alert('修正依頼を送信しました。管理者が確認します。');
-              self.render('home');
+              // 役割に応じた画面に戻る
+              if (App.currentUser.role === 'admin') {
+                self.render('admin');
+              } else if (App.currentUser.role === 'subadmin') {
+                self.render('subadmin');
+              } else {
+                self.render('home');
+              }
             });
           });
         }
@@ -5503,7 +5510,14 @@
               App.records.push(newRecord);
               App.save();
               alert('始業を記録しました！' + (shiftType === 'night' ? '（🌙夜勤）' : ''));
-              self.render('home');
+              // 役割に応じた画面に戻る
+              if (App.currentUser.role === 'admin') {
+                self.render('admin');
+              } else if (App.currentUser.role === 'subadmin') {
+                self.render('subadmin');
+              } else {
+                self.render('home');
+              }
             });
           }
         }
@@ -5550,7 +5564,14 @@
 
               App.save();
               alert('終業を記録しました！お疲れさまでした！');
-              self.render('home');
+              // 役割に応じた画面に戻る
+              if (App.currentUser.role === 'admin') {
+                self.render('admin');
+              } else if (App.currentUser.role === 'subadmin') {
+                self.render('subadmin');
+              } else {
+                self.render('home');
+              }
             });
           }
         }
