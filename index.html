@@ -3078,7 +3078,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.0.0';
+    const APP_VERSION = 'v2.1.1';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -3255,6 +3255,39 @@
         return null;
       },
 
+      // プライベート従業員を表示できるかどうか
+      canViewPrivate: function() {
+        return this.currentUser && this.currentUser.role === 'admin';
+      },
+      
+      // 表示可能な従業員リストを取得
+      getVisibleEmployees: function(includeAdmin) {
+        let list = this.employees.filter(e => e.isActive);
+        if (!includeAdmin) {
+          list = list.filter(e => e.id !== 'admin');
+        }
+        if (!this.canViewPrivate()) {
+          list = list.filter(e => !e.isPrivate);
+        }
+        return list;
+      },
+      
+      // 表示可能な勤怠記録を取得
+      getVisibleRecords: function() {
+        if (this.canViewPrivate()) {
+          return this.records;
+        }
+        // プライベート従業員のIDを取得
+        const privateIds = this.employees.filter(e => e.isPrivate).map(e => e.id);
+        return this.records.filter(r => !privateIds.includes(r.employeeId));
+      },
+      
+      // 従業員がプライベートかどうか
+      isPrivateEmployee: function(employeeId) {
+        const emp = this.employees.find(e => e.id === employeeId);
+        return emp && emp.isPrivate;
+      },
+
       getToday: function() {
         return new Date().toISOString().split('T')[0];
       },
@@ -3356,8 +3389,10 @@
         return html;
       },
 
-      // プライベート従業員（管理者のみ閲覧可）
-      PRIVATE_EMPLOYEE_IDS: ['8', '9'],  // 戸塚力、戸塚志保
+      // プライベート従業員ID（動的に取得）
+      getPrivateEmployeeIds: function() {
+        return this.employees.filter(e => e.isPrivate).map(e => e.id);
+      },
       
       // 現場カウント除外リスト
       EXCLUDED_SITES: ['営業', '内勤'],
@@ -3368,7 +3403,8 @@
         
         // プライベート従業員をフィルタ（管理者以外の場合）
         if (!includePrivate) {
-          todayRecords = todayRecords.filter(r => !this.PRIVATE_EMPLOYEE_IDS.includes(r.employeeId));
+          const privateIds = this.getPrivateEmployeeIds();
+          todayRecords = todayRecords.filter(r => !privateIds.includes(r.employeeId));
         }
         
         const bySite = {};
@@ -4248,18 +4284,19 @@
 
       dailyList: function() {
         // プライベート従業員を除外するかどうか
-        const isAdmin = App.currentUser.role === 'admin';
+        const isAdmin = App.canViewPrivate();
+        const privateIds = App.getPrivateEmployeeIds();
         let records = App.records.filter(r => r.workDate === App.selectedDate);
         
         // 副管理者の場合はプライベート従業員を除外
         if (!isAdmin) {
-          records = records.filter(r => !App.PRIVATE_EMPLOYEE_IDS.includes(r.employeeId));
+          records = records.filter(r => !privateIds.includes(r.employeeId));
         }
         
         // 全従業員の出勤状況を作成（管理者も含む）
         let activeEmployees = App.employees.filter(e => e.isActive);
         if (!isAdmin) {
-          activeEmployees = activeEmployees.filter(e => !App.PRIVATE_EMPLOYEE_IDS.includes(e.id));
+          activeEmployees = activeEmployees.filter(e => !e.isPrivate);
         }
         
         let gridHtml = '<div class="attendance-grid">';
@@ -4348,12 +4385,13 @@
 
       siteList: function() {
         const selectedDate = App.selectedSiteDate;
-        const isAdmin = App.currentUser.role === 'admin';
+        const isAdmin = App.canViewPrivate();
+        const privateIds = App.getPrivateEmployeeIds();
         
         // 選択日の記録を取得
         let dayRecords = App.records.filter(r => r.workDate === selectedDate);
         if (!isAdmin) {
-          dayRecords = dayRecords.filter(r => !App.PRIVATE_EMPLOYEE_IDS.includes(r.employeeId));
+          dayRecords = dayRecords.filter(r => !privateIds.includes(r.employeeId));
         }
         
         // 現場ごとにグループ化
@@ -4706,37 +4744,21 @@
       },
 
       employeeHistory: function() {
-        const isAdmin = App.currentUser.role === 'admin';
+        const isAdmin = App.canViewPrivate();
         
-        // 従業員リスト（管理者はプライベートも表示、副管理者は非表示）
-        let employees = App.employees.filter(e => e.id !== 'admin' && e.isActive);
-        if (!isAdmin) {
-          employees = employees.filter(e => !e.isPrivate);
-        }
+        // 従業員リスト（ヘルパー関数を使用）
+        const employees = App.getVisibleEmployees(false);
         
         // 選択中の従業員（デフォルトは最初の従業員）
-        let selectedEmpId = App.selectedEmployeeForHistory || (employees[0] ? employees[0].id : null);
+        let selectedEmpId = App.selectedEmployeeForHistory;
         
-        // 副管理者の場合、選択された従業員がプライベートなら最初の従業員にリセット
-        if (!isAdmin && selectedEmpId) {
-          const selectedEmpCheck = App.employees.find(e => e.id === selectedEmpId);
-          if (selectedEmpCheck && selectedEmpCheck.isPrivate) {
-            selectedEmpId = employees[0] ? employees[0].id : null;
-            App.selectedEmployeeForHistory = selectedEmpId;
-          }
-          // 選択された従業員がリストにない場合もリセット
-          if (!employees.find(e => e.id === selectedEmpId)) {
-            selectedEmpId = employees[0] ? employees[0].id : null;
-            App.selectedEmployeeForHistory = selectedEmpId;
-          }
+        // 選択された従業員が表示可能リストにあるか確認
+        if (!selectedEmpId || !employees.find(e => e.id === selectedEmpId)) {
+          selectedEmpId = employees[0] ? employees[0].id : null;
+          App.selectedEmployeeForHistory = selectedEmpId;
         }
         
         const selectedEmp = employees.find(e => e.id === selectedEmpId);
-        
-        // 副管理者がプライベート従業員を見ようとしている場合は空表示
-        if (!isAdmin && selectedEmp && selectedEmp.isPrivate) {
-          selectedEmpId = null;
-        }
         
         // 選択中の月（デフォルトは今月）
         const selectedMonth = App.employeeHistoryMonth || new Date().toISOString().slice(0, 7);
@@ -5026,13 +5048,21 @@
       siteMaster: function() {
         let sitesHtml = '';
         App.jobSites.forEach(site => {
+          // この現場の勤怠記録数
+          const recordCount = App.records.filter(r => r.jobSiteId === site.id || r.jobSiteName === site.name).length;
+          
           sitesHtml += `
             <div class="master-card">
               <div class="master-header">
                 <span class="master-name">🏗️ ${site.name}</span>
               </div>
               <p class="master-detail">${site.address || '住所未設定'}</p>
-              <button class="toggle-btn ${site.isActive ? 'active' : 'inactive'}" data-site="${site.id}">${site.isActive ? '有効' : '無効'}</button>
+              <p class="master-detail" style="font-size: 12px; color: #64748b;">勤怠記録: ${recordCount}件</p>
+              <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+                <button class="toggle-btn ${site.isActive ? 'active' : 'inactive'}" data-site="${site.id}">${site.isActive ? '有効' : '無効'}</button>
+                <button class="merge-site-btn" data-site-id="${site.id}" data-site-name="${site.name}" style="padding: 6px 12px; background: #f59e0b; color: #fff; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">統合</button>
+                <button class="delete-site-btn" data-site-id="${site.id}" data-site-name="${site.name}" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">削除</button>
+              </div>
             </div>
           `;
         });
@@ -5048,6 +5078,11 @@
               <input type="text" id="newSiteName" class="form-input" placeholder="現場名">
               <input type="text" id="newSiteAddress" class="form-input" placeholder="住所">
               <button id="addSiteBtn" class="add-btn">追加</button>
+            </div>
+            <div style="background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+              <p style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">💡 操作説明</p>
+              <p style="font-size: 12px; color: #64748b;">・<b>統合</b>: この現場を別の現場に統合（勤怠記録・収支データも移行）</p>
+              <p style="font-size: 12px; color: #64748b;">・<b>削除</b>: この現場を削除（勤怠記録がある場合は削除不可）</p>
             </div>
             ${sitesHtml}
           </div>
@@ -5795,54 +5830,109 @@
                 return;
               }
               
-              // 編集ダイアログを表示
-              const currentClockIn = record.clockInTime ? new Date(record.clockInTime).toTimeString().slice(0,5) : '';
-              const currentClockOut = record.clockOutTime ? new Date(record.clockOutTime).toTimeString().slice(0,5) : '';
+              // 操作選択
+              const action = prompt(
+                `【${record.employeeName}】${record.workDate}\n` +
+                `現場: ${record.jobSiteName}\n\n` +
+                `操作を選択してください:\n` +
+                `1: 時刻を編集\n` +
+                `2: 現場名を変更\n` +
+                `3: この記録を削除\n\n` +
+                `番号を入力:`, '1'
+              );
               
-              const newClockIn = prompt('始業時刻 (HH:MM)', currentClockIn);
-              if (newClockIn === null) return;
+              if (action === null) return;
               
-              const newClockOut = prompt('終業時刻 (HH:MM)（未終業の場合は空欄）', currentClockOut);
-              if (newClockOut === null) return;
-              
-              // 時刻を更新
-              if (newClockIn) {
-                const [h, m] = newClockIn.split(':').map(Number);
-                const newDate = new Date(record.clockInTime);
-                newDate.setHours(h, m, 0, 0);
-                record.clockInTime = newDate.toISOString();
-              }
-              
-              if (newClockOut) {
-                const [h, m] = newClockOut.split(':').map(Number);
-                let newDate;
-                if (record.clockOutTime) {
-                  newDate = new Date(record.clockOutTime);
-                } else {
-                  newDate = new Date(record.clockInTime);
-                }
-                newDate.setHours(h, m, 0, 0);
-                // 終業が始業より早い場合は翌日と判断
-                if (newDate < new Date(record.clockInTime)) {
-                  newDate.setDate(newDate.getDate() + 1);
-                }
-                record.clockOutTime = newDate.toISOString();
-                record.status = 'completed';
+              if (action === '1') {
+                // 時刻編集
+                const currentClockIn = record.clockInTime ? new Date(record.clockInTime).toTimeString().slice(0,5) : '';
+                const currentClockOut = record.clockOutTime ? new Date(record.clockOutTime).toTimeString().slice(0,5) : '';
                 
-                // 勤務時間を再計算
-                const clockInTime = new Date(record.clockInTime);
-                const clockOutTime = new Date(record.clockOutTime);
-                const workHours = (clockOutTime - clockInTime) / (1000 * 60 * 60);
-                record.workHours = Math.round(workHours * 100) / 100;
+                const newClockIn = prompt('始業時刻 (HH:MM)', currentClockIn);
+                if (newClockIn === null) return;
+                
+                const newClockOut = prompt('終業時刻 (HH:MM)（未終業の場合は空欄）', currentClockOut);
+                if (newClockOut === null) return;
+                
+                if (newClockIn) {
+                  const [h, m] = newClockIn.split(':').map(Number);
+                  const newDate = new Date(record.clockInTime);
+                  newDate.setHours(h, m, 0, 0);
+                  record.clockInTime = newDate.toISOString();
+                }
+                
+                if (newClockOut) {
+                  const [h, m] = newClockOut.split(':').map(Number);
+                  let newDate;
+                  if (record.clockOutTime) {
+                    newDate = new Date(record.clockOutTime);
+                  } else {
+                    newDate = new Date(record.clockInTime);
+                  }
+                  newDate.setHours(h, m, 0, 0);
+                  if (newDate < new Date(record.clockInTime)) {
+                    newDate.setDate(newDate.getDate() + 1);
+                  }
+                  record.clockOutTime = newDate.toISOString();
+                  record.status = 'completed';
+                  
+                  const clockInTime = new Date(record.clockInTime);
+                  const clockOutTime = new Date(record.clockOutTime);
+                  const workHours = (clockOutTime - clockInTime) / (1000 * 60 * 60);
+                  record.workHours = Math.round(workHours * 100) / 100;
+                } else {
+                  record.clockOutTime = null;
+                  record.status = 'working';
+                  record.workHours = null;
+                }
+                
+                App.save();
+                alert('時刻を更新しました');
+                
+              } else if (action === '2') {
+                // 現場名変更
+                let siteOptions = '';
+                App.jobSites.filter(s => s.isActive).forEach((site, idx) => {
+                  siteOptions += (idx + 1) + ': ' + site.name + '\n';
+                });
+                
+                const siteChoice = prompt(
+                  '現場を選択してください:\n\n' + siteOptions + '\n番号を入力:',
+                  ''
+                );
+                
+                if (siteChoice === null || siteChoice === '') return;
+                
+                const siteIdx = parseInt(siteChoice) - 1;
+                const activeSites = App.jobSites.filter(s => s.isActive);
+                if (siteIdx >= 0 && siteIdx < activeSites.length) {
+                  const newSite = activeSites[siteIdx];
+                  record.jobSiteId = newSite.id;
+                  record.jobSiteName = newSite.name;
+                  App.save();
+                  alert('現場を「' + newSite.name + '」に変更しました');
+                } else {
+                  alert('無効な番号です');
+                  return;
+                }
+                
+              } else if (action === '3') {
+                // 削除
+                if (confirm(`本当にこの記録を削除しますか？\n\n${record.workDate} ${record.jobSiteName}`)) {
+                  const idx = App.records.findIndex(r => r.id === recordId);
+                  if (idx !== -1) {
+                    App.records.splice(idx, 1);
+                    App.save();
+                    alert('記録を削除しました');
+                  }
+                } else {
+                  return;
+                }
               } else {
-                // 終業を空にした場合
-                record.clockOutTime = null;
-                record.status = 'working';
-                record.workHours = null;
+                alert('無効な番号です');
+                return;
               }
               
-              App.save();
-              alert('更新しました');
               self.render('employeeHistory');
             });
           });
@@ -6160,12 +6250,13 @@
               const site = App.jobSites.find(s => s.id === siteId);
               
               // その日のその現場の記録を取得
-              const isAdmin = App.currentUser.role === 'admin';
+              const isAdmin = App.canViewPrivate();
+              const privateIds = App.getPrivateEmployeeIds();
               let siteRecords = App.records.filter(r => 
                 r.workDate === selectedDate && r.jobSiteName === siteName
               );
               if (!isAdmin) {
-                siteRecords = siteRecords.filter(r => !App.PRIVATE_EMPLOYEE_IDS.includes(r.employeeId));
+                siteRecords = siteRecords.filter(r => !privateIds.includes(r.employeeId));
               }
               
               // 現場日報データを取得
@@ -6979,6 +7070,137 @@
               const site = App.jobSites.find(s => s.id === siteId);
               site.isActive = !site.isActive;
               App.save();
+              self.render('siteMaster');
+            });
+          });
+          
+          // 統合ボタン
+          document.querySelectorAll('.merge-site-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const sourceSiteId = this.getAttribute('data-site-id');
+              const sourceSiteName = this.getAttribute('data-site-name');
+              const sourceSite = App.jobSites.find(s => s.id === sourceSiteId);
+              if (!sourceSite) return;
+              
+              // 統合先の現場を選択
+              let siteOptions = '';
+              App.jobSites.filter(s => s.id !== sourceSiteId).forEach((site, idx) => {
+                siteOptions += (idx + 1) + ': ' + site.name + '\n';
+              });
+              
+              const choice = prompt(
+                `「${sourceSiteName}」を別の現場に統合します。\n` +
+                `統合先を選択してください:\n\n` + siteOptions + '\n番号を入力:',
+                ''
+              );
+              
+              if (choice === null || choice === '') return;
+              
+              const targetSites = App.jobSites.filter(s => s.id !== sourceSiteId);
+              const targetIdx = parseInt(choice) - 1;
+              if (targetIdx < 0 || targetIdx >= targetSites.length) {
+                alert('無効な番号です');
+                return;
+              }
+              
+              const targetSite = targetSites[targetIdx];
+              
+              if (!confirm(
+                `「${sourceSiteName}」を「${targetSite.name}」に統合します。\n\n` +
+                `・勤怠記録の現場名が変更されます\n` +
+                `・収支データが統合されます\n` +
+                `・元の現場は削除されます\n\n` +
+                `よろしいですか？`
+              )) return;
+              
+              // 1. 勤怠記録の現場名を変更
+              App.records.forEach(r => {
+                if (r.jobSiteId === sourceSiteId || r.jobSiteName === sourceSiteName) {
+                  r.jobSiteId = targetSite.id;
+                  r.jobSiteName = targetSite.name;
+                }
+              });
+              
+              // 2. 日報データを統合
+              if (App.siteDailyReports) {
+                if (App.siteDailyReports[sourceSiteName]) {
+                  if (!App.siteDailyReports[targetSite.name]) {
+                    App.siteDailyReports[targetSite.name] = {};
+                  }
+                  // 元の日報データをコピー（既存があれば上書きしない）
+                  Object.keys(App.siteDailyReports[sourceSiteName]).forEach(date => {
+                    if (!App.siteDailyReports[targetSite.name][date]) {
+                      App.siteDailyReports[targetSite.name][date] = App.siteDailyReports[sourceSiteName][date];
+                    }
+                  });
+                  delete App.siteDailyReports[sourceSiteName];
+                }
+              }
+              
+              // 3. 収支データを統合
+              if (App.siteFinanceData) {
+                if (App.siteFinanceData[sourceSiteName]) {
+                  if (!App.siteFinanceData[targetSite.name]) {
+                    App.siteFinanceData[targetSite.name] = App.siteFinanceData[sourceSiteName];
+                  } else {
+                    // 材料費などを合算
+                    const source = App.siteFinanceData[sourceSiteName];
+                    const target = App.siteFinanceData[targetSite.name];
+                    if (source.materials && target.materials) {
+                      Object.keys(source.materials).forEach(month => {
+                        target.materials[month] = (target.materials[month] || 0) + (source.materials[month] || 0);
+                      });
+                    }
+                  }
+                  delete App.siteFinanceData[sourceSiteName];
+                }
+              }
+              
+              // 4. 元の現場を削除
+              App.jobSites = App.jobSites.filter(s => s.id !== sourceSiteId);
+              
+              App.save();
+              alert(`「${sourceSiteName}」を「${targetSite.name}」に統合しました`);
+              self.render('siteMaster');
+            });
+          });
+          
+          // 削除ボタン
+          document.querySelectorAll('.delete-site-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const siteId = this.getAttribute('data-site-id');
+              const siteName = this.getAttribute('data-site-name');
+              const site = App.jobSites.find(s => s.id === siteId);
+              if (!site) return;
+              
+              // 勤怠記録があるかチェック
+              const recordCount = App.records.filter(r => r.jobSiteId === siteId || r.jobSiteName === siteName).length;
+              
+              if (recordCount > 0) {
+                alert(
+                  `この現場には ${recordCount}件 の勤怠記録があるため削除できません。\n\n` +
+                  `削除したい場合は、先に「統合」で別の現場に統合してください。`
+                );
+                return;
+              }
+              
+              if (!confirm(`「${siteName}」を削除しますか？`)) return;
+              
+              // 日報データも削除
+              if (App.siteDailyReports && App.siteDailyReports[siteName]) {
+                delete App.siteDailyReports[siteName];
+              }
+              
+              // 収支データも削除
+              if (App.siteFinanceData && App.siteFinanceData[siteName]) {
+                delete App.siteFinanceData[siteName];
+              }
+              
+              // 現場を削除
+              App.jobSites = App.jobSites.filter(s => s.id !== siteId);
+              
+              App.save();
+              alert(`「${siteName}」を削除しました`);
               self.render('siteMaster');
             });
           });
