@@ -3078,7 +3078,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v1.9.0';
+    const APP_VERSION = 'v1.9.1';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -3915,12 +3915,34 @@
           
           const dayRecords = recordMap[day] || [];
           
+          // 休憩時間計算関数
+          function getBreakMinutes(workMinutes) {
+            if (workMinutes <= 360) return 0;        // 6時間以下: 休憩なし
+            if (workMinutes <= 480) return 45;       // 8時間以下: 45分
+            return 60;                                // 8時間超: 60分
+          }
+          
+          // 分を「○時間○分」形式に変換
+          function formatMinutes(minutes) {
+            const h = Math.floor(minutes / 60);
+            const m = minutes % 60;
+            if (h > 0 && m > 0) return `${h}時間${m}分`;
+            if (h > 0) return `${h}時間`;
+            return `${m}分`;
+          }
+          
           let statusHtml = '';
           if (dayRecords.length > 0) {
             workDays++;
             dayRecords.forEach(r => {
               const timeStr = App.formatTime(r.clockInTime) + '〜' + (r.clockOutTime ? App.formatTime(r.clockOutTime) : '勤務中');
-              const hoursStr = r.workHours ? `（${r.workHours.toFixed(1)}h）` : '';
+              let hoursStr = '';
+              if (r.workHours) {
+                const totalMinutes = Math.round(r.workHours * 60);
+                const breakMinutes = getBreakMinutes(totalMinutes);
+                const actualMinutes = Math.max(0, totalMinutes - breakMinutes);
+                hoursStr = `（実働 ${formatMinutes(actualMinutes)}）`;
+              }
               statusHtml += `
                 <div class="day-record">
                   <div class="day-site">🏗️ ${r.jobSiteName}</div>
@@ -4659,7 +4681,17 @@
         }
         
         // 選択中の従業員（デフォルトは最初の従業員）
-        const selectedEmpId = App.selectedEmployeeForHistory || (employees[0] ? employees[0].id : null);
+        let selectedEmpId = App.selectedEmployeeForHistory || (employees[0] ? employees[0].id : null);
+        
+        // 副管理者の場合、選択された従業員がプライベートなら最初の従業員にリセット
+        if (!isAdmin && selectedEmpId) {
+          const selectedEmpCheck = App.employees.find(e => e.id === selectedEmpId);
+          if (selectedEmpCheck && selectedEmpCheck.isPrivate) {
+            selectedEmpId = employees[0] ? employees[0].id : null;
+            App.selectedEmployeeForHistory = selectedEmpId;
+          }
+        }
+        
         const selectedEmp = employees.find(e => e.id === selectedEmpId);
         
         // 選択中の月（デフォルトは今月）
@@ -4714,12 +4746,34 @@
           
           const dayRecords = recordMap[day] || [];
           
+          // 休憩時間計算関数
+          function getBreakMinutes(workMinutes) {
+            if (workMinutes <= 360) return 0;        // 6時間以下: 休憩なし
+            if (workMinutes <= 480) return 45;       // 8時間以下: 45分
+            return 60;                                // 8時間超: 60分
+          }
+          
+          // 分を「○時間○分」形式に変換
+          function formatMinutes(minutes) {
+            const h = Math.floor(minutes / 60);
+            const m = minutes % 60;
+            if (h > 0 && m > 0) return `${h}時間${m}分`;
+            if (h > 0) return `${h}時間`;
+            return `${m}分`;
+          }
+          
           let statusHtml = '';
           if (dayRecords.length > 0) {
             workDays++;
             dayRecords.forEach(r => {
               const timeStr = App.formatTime(r.clockInTime) + '〜' + (r.clockOutTime ? App.formatTime(r.clockOutTime) : '勤務中');
-              const hoursStr = r.workHours ? `（${r.workHours.toFixed(1)}h）` : '';
+              let hoursStr = '';
+              if (r.workHours) {
+                const totalMinutes = Math.round(r.workHours * 60);
+                const breakMinutes = getBreakMinutes(totalMinutes);
+                const actualMinutes = Math.max(0, totalMinutes - breakMinutes);
+                hoursStr = `（実働 ${formatMinutes(actualMinutes)}）`;
+              }
               statusHtml += `
                 <div class="day-record">
                   <div class="day-site">🏗️ ${r.jobSiteName}</div>
