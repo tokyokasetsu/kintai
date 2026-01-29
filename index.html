@@ -3078,7 +3078,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.1.1';
+    const APP_VERSION = 'v2.2.0';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -4362,6 +4362,7 @@
               <span class="attendance-date">${App.formatDate(App.selectedDate)}</span>
               <span class="attendance-count">始業: ${presentCount}/${activeEmployees.length}名</span>
             </div>
+            <button id="addAttendanceBtn" style="width: 100%; padding: 12px; margin-bottom: 16px; background: #22c55e; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer;">＋ 出勤記録を追加</button>
             ${gridHtml}
           </div>
           <div id="attendanceDetailModal" class="attendance-detail-modal hidden">
@@ -4829,6 +4830,9 @@
             return `${m}分`;
           }
           
+          // この日の日付文字列（YYYY-MM-DD）
+          const fullDateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+          
           let statusHtml = '';
           if (dayRecords.length > 0) {
             // 日勤・夜勤をカウント
@@ -4861,9 +4865,12 @@
                 </div>
               `;
             });
-          } else {
-            statusHtml = `<span class="day-off">休み</span>`;
           }
+          
+          // 追加ボタン（常に表示）
+          statusHtml += `
+            <button class="add-record-btn" data-date="${fullDateStr}" data-emp-id="${selectedEmpId}" style="padding: 4px 8px; background: #22c55e; color: #fff; border: none; border-radius: 4px; font-size: 11px; cursor: pointer; margin-top: 4px;">＋追加</button>
+          `;
           
           daysHtml += `
             <div class="day-row ${isSunday ? 'sunday' : ''} ${isSaturday ? 'saturday' : ''} ${dayRecords.length > 0 ? 'worked' : ''}">
@@ -5819,6 +5826,99 @@
             });
           }
           
+          // 追加ボタン
+          const addBtns = document.querySelectorAll('.add-record-btn');
+          addBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const workDate = this.getAttribute('data-date');
+              const empId = this.getAttribute('data-emp-id');
+              const emp = App.employees.find(e => e.id === empId);
+              if (!emp) {
+                alert('従業員が見つかりません');
+                return;
+              }
+              
+              // 現場選択
+              let siteOptions = '';
+              App.jobSites.filter(s => s.isActive).forEach((site, idx) => {
+                siteOptions += (idx + 1) + ': ' + site.name + '\n';
+              });
+              
+              const siteChoice = prompt(
+                `【${emp.name}】${workDate} の出勤を追加\n\n` +
+                `現場を選択してください:\n\n` + siteOptions + '\n番号を入力:',
+                ''
+              );
+              
+              if (siteChoice === null || siteChoice === '') return;
+              
+              const activeSites = App.jobSites.filter(s => s.isActive);
+              const siteIdx = parseInt(siteChoice) - 1;
+              if (siteIdx < 0 || siteIdx >= activeSites.length) {
+                alert('無効な番号です');
+                return;
+              }
+              const site = activeSites[siteIdx];
+              
+              // 始業時刻
+              const clockInTime = prompt('始業時刻 (HH:MM)', '08:00');
+              if (clockInTime === null || clockInTime === '') return;
+              
+              // 終業時刻
+              const clockOutTime = prompt('終業時刻 (HH:MM)（未終業なら空欄）', '17:00');
+              
+              // 日勤/夜勤
+              const shiftChoice = prompt('日勤/夜勤を選択:\n1: 日勤\n2: 夜勤\n\n番号を入力:', '1');
+              const shiftType = shiftChoice === '2' ? 'night' : 'day';
+              
+              // 始業時刻を作成
+              const [inH, inM] = clockInTime.split(':').map(Number);
+              const clockInDate = new Date(workDate + 'T00:00:00');
+              clockInDate.setHours(inH, inM, 0, 0);
+              
+              // 終業時刻を作成
+              let clockOutDate = null;
+              let workHours = null;
+              let status = 'working';
+              
+              if (clockOutTime) {
+                const [outH, outM] = clockOutTime.split(':').map(Number);
+                clockOutDate = new Date(workDate + 'T00:00:00');
+                clockOutDate.setHours(outH, outM, 0, 0);
+                // 終業が始業より早い場合は翌日
+                if (clockOutDate <= clockInDate) {
+                  clockOutDate.setDate(clockOutDate.getDate() + 1);
+                }
+                workHours = (clockOutDate - clockInDate) / (1000 * 60 * 60);
+                workHours = Math.round(workHours * 100) / 100;
+                status = 'completed';
+              }
+              
+              // 新しい記録を作成
+              const newRecord = {
+                id: Date.now().toString(),
+                employeeId: empId,
+                employeeName: emp.name,
+                jobSiteId: site.id,
+                jobSiteName: site.name,
+                workDate: workDate,
+                clockInTime: clockInDate.toISOString(),
+                clockOutTime: clockOutDate ? clockOutDate.toISOString() : null,
+                shiftType: shiftType,
+                workHours: workHours,
+                status: status,
+                memo: '',
+                addedBy: App.currentUser.name,
+                addedAt: new Date().toISOString()
+              };
+              
+              App.records.push(newRecord);
+              App.save();
+              alert('出勤記録を追加しました');
+              self.render('employeeHistory');
+            });
+          });
+          
           // 編集ボタン
           const editBtns = document.querySelectorAll('.edit-record-btn');
           editBtns.forEach(function(btn) {
@@ -6648,6 +6748,113 @@
           if (dateSelect) {
             dateSelect.addEventListener('change', function() {
               App.selectedDate = this.value;
+              self.render('dailyList');
+            });
+          }
+
+          // 出勤記録追加ボタン
+          const addAttendanceBtn = document.getElementById('addAttendanceBtn');
+          if (addAttendanceBtn) {
+            addAttendanceBtn.addEventListener('click', function() {
+              const workDate = App.selectedDate;
+              
+              // 従業員選択
+              const visibleEmployees = App.getVisibleEmployees(true);
+              let empOptions = '';
+              visibleEmployees.forEach((emp, idx) => {
+                empOptions += (idx + 1) + ': ' + emp.name + '\n';
+              });
+              
+              const empChoice = prompt(
+                `${App.formatDate(workDate)} の出勤記録を追加\n\n` +
+                `従業員を選択:\n\n` + empOptions + '\n番号を入力:',
+                ''
+              );
+              
+              if (empChoice === null || empChoice === '') return;
+              
+              const empIdx = parseInt(empChoice) - 1;
+              if (empIdx < 0 || empIdx >= visibleEmployees.length) {
+                alert('無効な番号です');
+                return;
+              }
+              const emp = visibleEmployees[empIdx];
+              
+              // 現場選択
+              let siteOptions = '';
+              App.jobSites.filter(s => s.isActive).forEach((site, idx) => {
+                siteOptions += (idx + 1) + ': ' + site.name + '\n';
+              });
+              
+              const siteChoice = prompt(
+                `現場を選択:\n\n` + siteOptions + '\n番号を入力:',
+                ''
+              );
+              
+              if (siteChoice === null || siteChoice === '') return;
+              
+              const activeSites = App.jobSites.filter(s => s.isActive);
+              const siteIdx = parseInt(siteChoice) - 1;
+              if (siteIdx < 0 || siteIdx >= activeSites.length) {
+                alert('無効な番号です');
+                return;
+              }
+              const site = activeSites[siteIdx];
+              
+              // 始業時刻
+              const clockInTime = prompt('始業時刻 (HH:MM)', '08:00');
+              if (clockInTime === null || clockInTime === '') return;
+              
+              // 終業時刻
+              const clockOutTime = prompt('終業時刻 (HH:MM)（未終業なら空欄）', '17:00');
+              
+              // 日勤/夜勤
+              const shiftChoice = prompt('日勤/夜勤:\n1: 日勤\n2: 夜勤\n\n番号を入力:', '1');
+              const shiftType = shiftChoice === '2' ? 'night' : 'day';
+              
+              // 始業時刻を作成
+              const [inH, inM] = clockInTime.split(':').map(Number);
+              const clockInDate = new Date(workDate + 'T00:00:00');
+              clockInDate.setHours(inH, inM, 0, 0);
+              
+              // 終業時刻を作成
+              let clockOutDate = null;
+              let workHours = null;
+              let status = 'working';
+              
+              if (clockOutTime) {
+                const [outH, outM] = clockOutTime.split(':').map(Number);
+                clockOutDate = new Date(workDate + 'T00:00:00');
+                clockOutDate.setHours(outH, outM, 0, 0);
+                if (clockOutDate <= clockInDate) {
+                  clockOutDate.setDate(clockOutDate.getDate() + 1);
+                }
+                workHours = (clockOutDate - clockInDate) / (1000 * 60 * 60);
+                workHours = Math.round(workHours * 100) / 100;
+                status = 'completed';
+              }
+              
+              // 新しい記録を作成
+              const newRecord = {
+                id: Date.now().toString(),
+                employeeId: emp.id,
+                employeeName: emp.name,
+                jobSiteId: site.id,
+                jobSiteName: site.name,
+                workDate: workDate,
+                clockInTime: clockInDate.toISOString(),
+                clockOutTime: clockOutDate ? clockOutDate.toISOString() : null,
+                shiftType: shiftType,
+                workHours: workHours,
+                status: status,
+                memo: '',
+                addedBy: App.currentUser.name,
+                addedAt: new Date().toISOString()
+              };
+              
+              App.records.push(newRecord);
+              App.save();
+              alert('出勤記録を追加しました');
               self.render('dailyList');
             });
           }
