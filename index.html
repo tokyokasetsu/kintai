@@ -3078,7 +3078,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.2.0';
+    const APP_VERSION = 'v2.2.1';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -3262,22 +3262,33 @@
       
       // 表示可能な従業員リストを取得
       getVisibleEmployees: function(includeAdmin) {
+        // プライベート従業員ID（ハードコード）
+        const PRIVATE_IDS = ['10', '11'];
+        
         let list = this.employees.filter(e => e.isActive);
         if (!includeAdmin) {
           list = list.filter(e => e.id !== 'admin');
         }
         if (!this.canViewPrivate()) {
-          list = list.filter(e => !e.isPrivate);
+          // isPrivateフラグ または ID 10,11 を除外
+          list = list.filter(e => !e.isPrivate && !PRIVATE_IDS.includes(e.id));
         }
         return list;
       },
       
       // 表示可能な勤怠記録を取得
       getVisibleRecords: function() {
+        // プライベート従業員ID（ハードコード）
+        const PRIVATE_IDS = ['10', '11'];
+        
         if (this.canViewPrivate()) {
           return this.records;
         }
-        // プライベート従業員のIDを取得
+        // プライベート従業員のIDを取得（isPrivateフラグ + ハードコードID）
+        const privateIds = [...new Set([
+          ...this.employees.filter(e => e.isPrivate).map(e => e.id),
+          ...PRIVATE_IDS
+        ])];
         const privateIds = this.employees.filter(e => e.isPrivate).map(e => e.id);
         return this.records.filter(r => !privateIds.includes(r.employeeId));
       },
@@ -3391,7 +3402,10 @@
 
       // プライベート従業員ID（動的に取得）
       getPrivateEmployeeIds: function() {
-        return this.employees.filter(e => e.isPrivate).map(e => e.id);
+        // ハードコードのプライベートID + isPrivate=trueの従業員ID
+        const PRIVATE_IDS = ['10', '11'];
+        const fromFlag = this.employees.filter(e => e.isPrivate).map(e => e.id);
+        return [...new Set([...PRIVATE_IDS, ...fromFlag])];
       },
       
       // 現場カウント除外リスト
@@ -7927,11 +7941,39 @@
     async function initApp() {
       document.getElementById('app').innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;"><div style="font-size:48px;margin-bottom:20px;">⏳</div><div style="color:#94a3b8;">データ同期中...</div></div>';
       
+      // プライベート従業員のisPrivateを強制的に設定（LocalStorageの古いデータ対策）
+      const privateEmployeeIds = ['10', '11']; // 戸塚力、戸塚志保
+      let needsSave = false;
+      App.employees.forEach(emp => {
+        if (privateEmployeeIds.includes(emp.id)) {
+          if (!emp.isPrivate) {
+            emp.isPrivate = true;
+            needsSave = true;
+            console.log('isPrivate設定:', emp.name);
+          }
+        }
+      });
+      if (needsSave) {
+        App.save();
+      }
+      
       try {
         const loaded = await FirebaseSync.loadAllFromFirebase();
         if (!loaded) {
           await FirebaseSync.saveAllToFirebase();
         }
+        
+        // Firebase読み込み後も再度チェック
+        App.employees.forEach(emp => {
+          if (privateEmployeeIds.includes(emp.id)) {
+            if (!emp.isPrivate) {
+              emp.isPrivate = true;
+              console.log('isPrivate設定(Firebase後):', emp.name);
+            }
+          }
+        });
+        App.save();
+        
         FirebaseSync.startRealtimeSync();
         Views.render('login');
       } catch (error) {
