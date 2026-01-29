@@ -2978,45 +2978,71 @@
 
     // Firebase同期管理
     const FirebaseSync = {
+      // Firebaseが信頼できるデータソース（Single Source of Truth）
+      // LocalStorageはキャッシュとしてのみ使用
+      
       saveToFirebase: async function(collection, data) {
         try {
           await db.collection(collection).doc('main').set(data);
+          console.log('[Firebase] 保存完了:', collection);
         } catch (error) {
-          console.error('Firebase保存エラー:', error);
+          console.error('[Firebase] 保存エラー:', error);
+          throw error; // エラーを上に伝播させる
         }
       },
+      
       loadFromFirebase: async function(collection) {
         try {
           const doc = await db.collection(collection).doc('main').get();
           if (doc.exists) {
+            console.log('[Firebase] 読み込み成功:', collection);
             return doc.data();
           }
+          console.log('[Firebase] データなし:', collection);
           return null;
         } catch (error) {
-          console.error('Firebase読み込みエラー:', error);
+          console.error('[Firebase] 読み込みエラー:', error);
           return null;
         }
       },
+      
+      // 【重要】saveAllToFirebaseは明示的なユーザー操作時のみ呼ばれるべき
       saveAllToFirebase: async function() {
+        // 安全チェック: recordsが極端に少ない場合は警告
+        if (App.records.length < 10 && App._firebaseRecordsCount > 10) {
+          console.error('[Firebase] 危険: recordsが大幅に減少しています。保存を中止します。');
+          console.error('[Firebase] ローカル:', App.records.length, 'Firebase:', App._firebaseRecordsCount);
+          return false;
+        }
+        
         const data = {
           employees: App.employees,
           jobSites: App.jobSites,
           records: App.records,
-          corrections: App.corrections,
-          addressRequests: App.addressRequests,
-          deletedEmployees: App.deletedEmployees,
-          siteDailyReports: App.siteDailyReports,
-          siteFinanceData: App.siteFinanceData,
-          announcement: App.announcement,
+          corrections: App.corrections || [],
+          addressRequests: App.addressRequests || [],
+          deletedEmployees: App.deletedEmployees || [],
+          siteDailyReports: App.siteDailyReports || {},
+          siteFinanceData: App.siteFinanceData || {},
+          announcement: App.announcement || null,
           lastUpdated: new Date().toISOString()
         };
         await this.saveToFirebase('kintaiData', data);
+        App._firebaseRecordsCount = App.records.length;
+        return true;
       },
+      
+      // Firebaseから読み込み（これが唯一の信頼できるソース）
       loadAllFromFirebase: async function() {
         const data = await this.loadFromFirebase('kintaiData');
         if (data) {
-          if (data.employees) App.employees = data.employees;
-          if (data.jobSites) App.jobSites = data.jobSites;
+          // Firebaseのデータ件数を記録（安全チェック用）
+          App._firebaseRecordsCount = data.records ? data.records.length : 0;
+          console.log('[Firebase] records件数:', App._firebaseRecordsCount);
+          
+          // Firebaseのデータで上書き（Firebaseが正）
+          if (data.employees && data.employees.length > 0) App.employees = data.employees;
+          if (data.jobSites && data.jobSites.length > 0) App.jobSites = data.jobSites;
           if (data.records) App.records = data.records;
           if (data.corrections) App.corrections = data.corrections;
           if (data.addressRequests) App.addressRequests = data.addressRequests;
@@ -3024,6 +3050,8 @@
           if (data.siteDailyReports) App.siteDailyReports = data.siteDailyReports;
           if (data.siteFinanceData) App.siteFinanceData = data.siteFinanceData;
           if (data.announcement !== undefined) App.announcement = data.announcement;
+          
+          // LocalStorageにキャッシュ（バックアップ目的）
           Storage.set('employees', App.employees);
           Storage.set('jobsites', App.jobSites);
           Storage.set('records', App.records);
@@ -3037,10 +3065,14 @@
         }
         return false;
       },
+      
+      // リアルタイム同期（Firebaseの変更を監視）
       startRealtimeSync: function() {
         db.collection('kintaiData').doc('main').onSnapshot((doc) => {
           if (doc.exists) {
             const data = doc.data();
+            
+            // 自分の保存による更新は無視
             if (data.lastUpdated && App.lastSaveTime) {
               const updateTime = new Date(data.lastUpdated).getTime();
               const saveTime = new Date(App.lastSaveTime).getTime();
@@ -3048,15 +3080,24 @@
                 return;
               }
             }
-            if (data.employees) App.employees = data.employees;
-            if (data.jobSites) App.jobSites = data.jobSites;
-            if (data.records) App.records = data.records;
+            
+            console.log('[Firebase] リアルタイム更新受信');
+            
+            // Firebaseのデータで更新
+            if (data.employees && data.employees.length > 0) App.employees = data.employees;
+            if (data.jobSites && data.jobSites.length > 0) App.jobSites = data.jobSites;
+            if (data.records) {
+              App._firebaseRecordsCount = data.records.length;
+              App.records = data.records;
+            }
             if (data.corrections) App.corrections = data.corrections;
             if (data.addressRequests) App.addressRequests = data.addressRequests;
             if (data.deletedEmployees) App.deletedEmployees = data.deletedEmployees;
             if (data.siteDailyReports) App.siteDailyReports = data.siteDailyReports;
             if (data.siteFinanceData) App.siteFinanceData = data.siteFinanceData;
             if (data.announcement !== undefined) App.announcement = data.announcement;
+            
+            // LocalStorageにキャッシュ
             Storage.set('employees', App.employees);
             Storage.set('jobsites', App.jobSites);
             Storage.set('records', App.records);
@@ -3066,19 +3107,128 @@
             Storage.set('siteDailyReports', App.siteDailyReports);
             Storage.set('siteFinanceData', App.siteFinanceData);
             Storage.set('announcement', App.announcement);
+            
+            // 画面更新
             if (App.currentView !== 'login' && App.currentView !== 'accessAuth' && App.currentUser) {
               Views.render(App.currentView);
             }
           }
         }, (error) => {
-          console.error('リアルタイム同期エラー:', error);
+          console.error('[Firebase] リアルタイム同期エラー:', error);
         });
+      },
+      
+      // 【バックアップ機能】
+      // Firestoreの別コレクションに日付別でバックアップ
+      createBackup: async function() {
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+        const timeStr = now.toISOString().slice(11, 19).replace(/:/g, ''); // HHMMSS
+        const backupId = `backup_${dateStr}_${timeStr}`;
+        
+        const backupData = {
+          employees: App.employees,
+          jobSites: App.jobSites,
+          records: App.records,
+          corrections: App.corrections || [],
+          addressRequests: App.addressRequests || [],
+          deletedEmployees: App.deletedEmployees || [],
+          siteDailyReports: App.siteDailyReports || {},
+          siteFinanceData: App.siteFinanceData || {},
+          announcement: App.announcement || null,
+          backupDate: now.toISOString(),
+          recordsCount: App.records.length,
+          employeesCount: App.employees.length
+        };
+        
+        try {
+          await db.collection('kintaiBackups').doc(backupId).set(backupData);
+          console.log('[バックアップ] 作成完了:', backupId, 'records:', App.records.length);
+          return backupId;
+        } catch (error) {
+          console.error('[バックアップ] 作成エラー:', error);
+          return null;
+        }
+      },
+      
+      // バックアップ一覧を取得
+      listBackups: async function() {
+        try {
+          const snapshot = await db.collection('kintaiBackups')
+            .orderBy('backupDate', 'desc')
+            .limit(30)
+            .get();
+          
+          const backups = [];
+          snapshot.forEach(doc => {
+            backups.push({
+              id: doc.id,
+              ...doc.data()
+            });
+          });
+          return backups;
+        } catch (error) {
+          console.error('[バックアップ] 一覧取得エラー:', error);
+          return [];
+        }
+      },
+      
+      // バックアップから復元
+      restoreFromBackup: async function(backupId) {
+        try {
+          const doc = await db.collection('kintaiBackups').doc(backupId).get();
+          if (!doc.exists) {
+            alert('バックアップが見つかりません');
+            return false;
+          }
+          
+          const data = doc.data();
+          
+          // 復元前に現在のデータをバックアップ
+          await this.createBackup();
+          
+          // 復元
+          App.employees = data.employees || App.employees;
+          App.jobSites = data.jobSites || App.jobSites;
+          App.records = data.records || [];
+          App.corrections = data.corrections || [];
+          App.addressRequests = data.addressRequests || [];
+          App.deletedEmployees = data.deletedEmployees || [];
+          App.siteDailyReports = data.siteDailyReports || {};
+          App.siteFinanceData = data.siteFinanceData || {};
+          App.announcement = data.announcement || null;
+          
+          // Firebaseに保存
+          App._firebaseRecordsCount = App.records.length; // 安全チェック用に更新
+          await this.saveAllToFirebase();
+          
+          console.log('[バックアップ] 復元完了:', backupId);
+          return true;
+        } catch (error) {
+          console.error('[バックアップ] 復元エラー:', error);
+          return false;
+        }
+      },
+      
+      // 自動バックアップ（1日1回）
+      startAutoBackup: function() {
+        const lastBackup = localStorage.getItem('lastAutoBackup');
+        const today = new Date().toISOString().slice(0, 10);
+        
+        // 今日まだバックアップしていなければ実行
+        if (lastBackup !== today && App.records.length > 0) {
+          setTimeout(async () => {
+            await this.createBackup();
+            localStorage.setItem('lastAutoBackup', today);
+            console.log('[自動バックアップ] 完了');
+          }, 5000); // 起動5秒後に実行
+        }
       }
     };
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.2.4';
+    const APP_VERSION = 'v2.4.0';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -4168,6 +4318,10 @@
                   <span class="menu-icon">📊</span>
                   <span>CSVエクスポート</span>
                 </button>
+                <button class="menu-card" data-view="backupManagement">
+                  <span class="menu-icon">🔒</span>
+                  <span>バックアップ管理</span>
+                </button>
                 <button class="menu-card" data-view="dataManagement">
                   <span class="menu-icon">💾</span>
                   <span>データ管理</span>
@@ -5065,6 +5219,30 @@
             </div>
             ${employeesHtml}
             ${deletedHtml}
+          </div>
+        `;
+      },
+
+      backupManagement: function() {
+        return `
+          <div class="header">
+            <button id="backBtn" class="back-btn">← 戻る</button>
+            <span class="header-title">バックアップ管理</span>
+          </div>
+          <div class="list-content">
+            <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+              <p style="margin: 0; font-size: 13px; color: #92400e;">
+                ⚠️ バックアップは自動で1日1回作成されます。<br>
+                復元すると現在のデータが上書きされます。
+              </p>
+            </div>
+            
+            <button id="createBackupBtn" style="width: 100%; padding: 14px; background: #22c55e; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; margin-bottom: 16px;">
+              📦 今すぐバックアップを作成
+            </button>
+            
+            <h3 style="font-size: 14px; color: #64748b; margin: 16px 0 8px;">バックアップ一覧</h3>
+            <div id="backupList" style="color: #94a3b8;">読み込み中...</div>
           </div>
         `;
       },
@@ -7264,6 +7442,83 @@
           });
         }
 
+        // バックアップ管理
+        if (view === 'backupManagement') {
+          // バックアップ一覧を読み込み
+          FirebaseSync.listBackups().then(function(backups) {
+            const listDiv = document.getElementById('backupList');
+            if (backups.length === 0) {
+              listDiv.innerHTML = '<p style="color: #94a3b8;">バックアップがありません</p>';
+              return;
+            }
+            
+            let html = '';
+            backups.forEach(function(backup) {
+              const date = new Date(backup.backupDate);
+              const dateStr = date.toLocaleDateString('ja-JP', {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+              });
+              html += `
+                <div style="background: #1e293b; border-radius: 8px; padding: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    <div style="font-weight: bold; color: #e2e8f0;">${dateStr}</div>
+                    <div style="font-size: 12px; color: #94a3b8;">
+                      記録: ${backup.recordsCount || 0}件 / 従業員: ${backup.employeesCount || 0}名
+                    </div>
+                  </div>
+                  <button class="restore-backup-btn" data-backup-id="${backup.id}" style="padding: 8px 16px; background: #3b82f6; color: #fff; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">
+                    復元
+                  </button>
+                </div>
+              `;
+            });
+            listDiv.innerHTML = html;
+            
+            // 復元ボタンのイベント
+            document.querySelectorAll('.restore-backup-btn').forEach(function(btn) {
+              btn.addEventListener('click', async function() {
+                const backupId = this.getAttribute('data-backup-id');
+                if (!confirm('このバックアップからデータを復元しますか？\\n\\n現在のデータは上書きされます。\\n（復元前に自動バックアップを作成します）')) {
+                  return;
+                }
+                
+                this.textContent = '復元中...';
+                this.disabled = true;
+                
+                const success = await FirebaseSync.restoreFromBackup(backupId);
+                if (success) {
+                  alert('復元が完了しました');
+                  location.reload();
+                } else {
+                  alert('復元に失敗しました');
+                  this.textContent = '復元';
+                  this.disabled = false;
+                }
+              });
+            });
+          });
+          
+          // 今すぐバックアップ作成
+          const createBtn = document.getElementById('createBackupBtn');
+          if (createBtn) {
+            createBtn.addEventListener('click', async function() {
+              this.textContent = '作成中...';
+              this.disabled = true;
+              
+              const backupId = await FirebaseSync.createBackup();
+              if (backupId) {
+                alert('バックアップを作成しました\\n\\nID: ' + backupId);
+                self.render('backupManagement');
+              } else {
+                alert('バックアップの作成に失敗しました');
+                this.textContent = '📦 今すぐバックアップを作成';
+                this.disabled = false;
+              }
+            });
+          }
+        }
+
         // 現場マスタ
         if (view === 'siteMaster') {
           const addBtn = document.getElementById('addSiteBtn');
@@ -7944,37 +8199,40 @@
     async function initApp() {
       document.getElementById('app').innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;"><div style="font-size:48px;margin-bottom:20px;">⏳</div><div style="color:#94a3b8;">データ同期中...</div></div>';
       
-      // プライベート従業員ID（ハードコード）
-      const privateEmployeeIds = ['10', '11']; // 戸塚力、戸塚志保
-      
       try {
+        // 【重要】まずFirebaseからデータを読み込む（Firebaseが正）
         const loaded = await FirebaseSync.loadAllFromFirebase();
-        if (!loaded) {
-          await FirebaseSync.saveAllToFirebase();
+        
+        if (loaded) {
+          console.log('[起動] Firebaseからデータ読み込み完了');
+          console.log('[起動] records件数:', App.records.length);
+        } else {
+          // Firebaseにデータがない場合のみ、LocalStorageから初期化
+          // ただし、これは新規インストール時のみ
+          console.log('[起動] Firebaseにデータなし - 新規セットアップ');
         }
         
-        // Firebase読み込み後、プライベート従業員のisPrivateを強制設定
-        let needsSave = false;
+        // プライベート従業員のisPrivate確認（ログのみ、保存しない）
+        const privateEmployeeIds = ['10', '11'];
         App.employees.forEach(emp => {
-          if (privateEmployeeIds.includes(emp.id)) {
-            if (!emp.isPrivate) {
-              emp.isPrivate = true;
-              needsSave = true;
-              console.log('isPrivate強制設定:', emp.name, emp.id);
-            }
+          if (privateEmployeeIds.includes(emp.id) && !emp.isPrivate) {
+            console.warn('[警告] isPrivateが未設定:', emp.name);
+            // メモリ上では設定するが、即座にFirebaseに保存しない
+            emp.isPrivate = true;
           }
         });
         
-        // 変更があればFirebaseにも保存
-        if (needsSave) {
-          console.log('isPrivate設定をFirebaseに保存');
-          await FirebaseSync.saveAllToFirebase();
-        }
-        
+        // リアルタイム同期開始
         FirebaseSync.startRealtimeSync();
+        
+        // 自動バックアップ開始（1日1回）
+        FirebaseSync.startAutoBackup();
+        
         Views.render('login');
       } catch (error) {
-        console.error('初期化エラー:', error);
+        console.error('[起動] 初期化エラー:', error);
+        // エラー時はLocalStorageのキャッシュで動作（読み取り専用モード警告）
+        alert('サーバーとの接続に問題があります。一時的にオフラインモードで動作します。');
         Views.render('login');
       }
     }
