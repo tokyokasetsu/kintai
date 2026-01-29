@@ -1617,6 +1617,66 @@
       font-size: 14px;
       color: #60a5fa;
     }
+    
+    /* 日付一覧スタイル */
+    .days-list {
+      margin-top: 16px;
+    }
+    .day-row {
+      display: flex;
+      padding: 12px 16px;
+      border-bottom: 1px solid #334155;
+      background-color: #1e293b;
+    }
+    .day-row:first-child {
+      border-radius: 12px 12px 0 0;
+    }
+    .day-row:last-child {
+      border-radius: 0 0 12px 12px;
+      border-bottom: none;
+    }
+    .day-row.sunday {
+      background-color: rgba(239, 68, 68, 0.1);
+    }
+    .day-row.sunday .day-date {
+      color: #f87171;
+    }
+    .day-row.saturday {
+      background-color: rgba(59, 130, 246, 0.1);
+    }
+    .day-row.saturday .day-date {
+      color: #60a5fa;
+    }
+    .day-row.worked {
+      background-color: rgba(34, 197, 94, 0.1);
+    }
+    .day-date {
+      min-width: 90px;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+    .day-status {
+      flex: 1;
+    }
+    .day-off {
+      color: #64748b;
+      font-size: 14px;
+    }
+    .day-record {
+      margin-bottom: 4px;
+    }
+    .day-record:last-child {
+      margin-bottom: 0;
+    }
+    .day-site {
+      font-size: 14px;
+      color: #94a3b8;
+    }
+    .day-time {
+      font-size: 13px;
+      color: #60a5fa;
+    }
+    
     .record-memo {
       font-size: 13px;
       color: #94a3b8;
@@ -3018,7 +3078,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v1.7.3';
+    const APP_VERSION = 'v1.8.1';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -3386,10 +3446,7 @@
                 <input type="password" id="loginPassword" class="login-input" placeholder="パスワードを入力" autocomplete="off" inputmode="latin">
               </div>
               <div class="input-group" style="margin-top: 12px; margin-bottom: 20px;">
-                <div style="display: flex; align-items: center; gap: 10px; position: relative; z-index: 10;">
-                  <input type="checkbox" id="rememberIdCheck" style="width: 22px; height: 22px; cursor: pointer; accent-color: #3b82f6; position: relative; z-index: 11;">
-                  <span onclick="document.getElementById('rememberIdCheck').click();" style="font-size: 14px; color: #94a3b8; cursor: pointer;">IDを記憶する</span>
-                </div>
+                <button type="button" id="rememberIdBtn" style="width: 100%; padding: 12px; background: #334155; border: 2px solid #475569; border-radius: 8px; color: #94a3b8; font-size: 14px; cursor: pointer;">☐ IDを記憶する</button>
               </div>
               <p id="loginError" class="login-error">IDまたはパスワードが正しくありません</p>
               <button id="loginBtn" class="login-btn">ログイン</button>
@@ -3822,11 +3879,6 @@
           months.unshift(currentMonth);
         }
         
-        // 選択月の記録
-        const records = allRecords
-          .filter(r => r.workDate.startsWith(selectedMonth))
-          .sort((a, b) => new Date(b.workDate) - new Date(a.workDate));
-        
         // 月選択セレクトボックス
         let monthOptions = '';
         months.forEach(m => {
@@ -3835,31 +3887,60 @@
           monthOptions += `<option value="${m}" ${m === selectedMonth ? 'selected' : ''}>${label}</option>`;
         });
         
-        // 月の集計
-        const completedRecords = records.filter(r => r.status === 'completed');
-        const totalDays = completedRecords.length;
-        const totalHours = completedRecords.reduce((sum, r) => sum + (r.workHours || 0), 0);
+        // 選択月の1日〜末日を取得
+        const [year, month] = selectedMonth.split('-').map(Number);
+        const lastDay = new Date(year, month, 0).getDate();
+        const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
         
-        let recordsHtml = '';
-        if (records.length === 0) {
-          recordsHtml = '<p class="empty-text">この月の勤怠記録がありません</p>';
-        } else {
-          records.forEach(r => {
-            const date = new Date(r.workDate);
-            const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
-            const dateStr = `${date.getMonth() + 1}/${date.getDate()}（${weekdays[date.getDay()]}）`;
-            recordsHtml += `
-              <div class="record-card">
-                <div class="record-header">
-                  <span class="record-date">${dateStr}</span>
-                  <span class="record-status ${r.status}">${r.status === 'working' ? '勤務中' : '完了'}</span>
-                </div>
-                <p class="record-site">🏗️ ${r.jobSiteName}</p>
-                <p class="record-time">${App.formatTime(r.clockInTime)} 〜 ${App.formatTime(r.clockOutTime)}${r.workHours ? ' （' + r.workHours.toFixed(1) + 'h）' : ''}</p>
-                ${r.memo ? '<p class="record-memo">📝 ' + r.memo + '</p>' : ''}
-              </div>
-            `;
+        // 選択月の記録をマップ化（日付をキーに）
+        const recordMap = {};
+        allRecords
+          .filter(r => r.workDate.startsWith(selectedMonth))
+          .forEach(r => {
+            const day = parseInt(r.workDate.split('-')[2]);
+            if (!recordMap[day]) recordMap[day] = [];
+            recordMap[day].push(r);
           });
+        
+        // 出勤日数をカウント
+        let workDays = 0;
+        
+        // 日付一覧を生成
+        let daysHtml = '';
+        for (let day = 1; day <= lastDay; day++) {
+          const dateObj = new Date(year, month - 1, day);
+          const dayOfWeek = dateObj.getDay();
+          const weekdayStr = weekdays[dayOfWeek];
+          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+          const isSunday = dayOfWeek === 0;
+          const isSaturday = dayOfWeek === 6;
+          const dateStr = `${month}/${day}（${weekdayStr}）`;
+          
+          const dayRecords = recordMap[day] || [];
+          
+          let statusHtml = '';
+          if (dayRecords.length > 0) {
+            workDays++;
+            dayRecords.forEach(r => {
+              const timeStr = App.formatTime(r.clockInTime) + '〜' + (r.clockOutTime ? App.formatTime(r.clockOutTime) : '勤務中');
+              const hoursStr = r.workHours ? `（${r.workHours.toFixed(1)}h）` : '';
+              statusHtml += `
+                <div class="day-record">
+                  <div class="day-site">🏗️ ${r.jobSiteName}</div>
+                  <div class="day-time">${timeStr}${hoursStr}</div>
+                </div>
+              `;
+            });
+          } else {
+            statusHtml = `<span class="day-off">休み</span>`;
+          }
+          
+          daysHtml += `
+            <div class="day-row ${isSunday ? 'sunday' : ''} ${isSaturday ? 'saturday' : ''} ${dayRecords.length > 0 ? 'worked' : ''}">
+              <div class="day-date">${dateStr}</div>
+              <div class="day-status">${statusHtml}</div>
+            </div>
+          `;
         }
 
         return `
@@ -3875,15 +3956,13 @@
             </div>
             <div class="month-summary">
               <div class="month-summary-item">
-                <span class="month-summary-label">始業日数</span>
-                <span class="month-summary-value">${totalDays}日</span>
-              </div>
-              <div class="month-summary-item">
-                <span class="month-summary-label">合計勤務時間</span>
-                <span class="month-summary-value">${totalHours.toFixed(1)}時間</span>
+                <span class="month-summary-label">出勤日数</span>
+                <span class="month-summary-value">${workDays}日</span>
               </div>
             </div>
-            ${recordsHtml}
+            <div class="days-list">
+              ${daysHtml}
+            </div>
           </div>
         `;
       },
@@ -5113,19 +5192,42 @@
           const loginIdInput = document.getElementById('loginId');
           const loginPasswordInput = document.getElementById('loginPassword');
           const loginError = document.getElementById('loginError');
-          const rememberIdCheck = document.getElementById('rememberIdCheck');
+          const rememberIdBtn = document.getElementById('rememberIdBtn');
+          let rememberIdChecked = false;
 
           // 記憶されたIDを読み込み
           const savedId = localStorage.getItem('kintai_saved_id');
           if (savedId && loginIdInput) {
             loginIdInput.value = savedId;
-            if (rememberIdCheck) {
-              rememberIdCheck.checked = true;
+            rememberIdChecked = true;
+            if (rememberIdBtn) {
+              rememberIdBtn.textContent = '☑ IDを記憶する';
+              rememberIdBtn.style.background = '#3b82f6';
+              rememberIdBtn.style.borderColor = '#3b82f6';
+              rememberIdBtn.style.color = '#fff';
             }
             // IDが入力済みならパスワード欄にフォーカス
             if (loginPasswordInput) {
               setTimeout(function() { loginPasswordInput.focus(); }, 100);
             }
+          }
+
+          // 記憶ボタンのトグル
+          if (rememberIdBtn) {
+            rememberIdBtn.addEventListener('click', function() {
+              rememberIdChecked = !rememberIdChecked;
+              if (rememberIdChecked) {
+                this.textContent = '☑ IDを記憶する';
+                this.style.background = '#3b82f6';
+                this.style.borderColor = '#3b82f6';
+                this.style.color = '#fff';
+              } else {
+                this.textContent = '☐ IDを記憶する';
+                this.style.background = '#334155';
+                this.style.borderColor = '#475569';
+                this.style.color = '#94a3b8';
+              }
+            });
           }
 
           // 半角変換関数
@@ -5168,12 +5270,9 @@
                 App.currentUser = emp;
                 loginError.classList.remove('show');
                 
-                // IDを記憶するかどうか（クリック時に再取得）
-                const checkbox = document.getElementById('rememberIdCheck');
-                alert('チェックボックス: ' + (checkbox ? 'あり' : 'なし') + '\nチェック状態: ' + (checkbox ? checkbox.checked : '不明'));
-                if (checkbox && checkbox.checked) {
+                // IDを記憶するかどうか
+                if (rememberIdChecked) {
                   localStorage.setItem('kintai_saved_id', id);
-                  alert('IDを保存しました: ' + id);
                 } else {
                   localStorage.removeItem('kintai_saved_id');
                 }
