@@ -3078,7 +3078,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.2.2';
+    const APP_VERSION = 'v2.2.4';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -3925,15 +3925,18 @@
       },
 
       history: function() {
+        // 現在の年月を確実に取得
+        const nowDate = new Date();
+        const currentMonth = nowDate.getFullYear() + '-' + String(nowDate.getMonth() + 1).padStart(2, '0');
+        
         // 選択中の月（デフォルトは今月）
-        const selectedMonth = App.historyMonth || new Date().toISOString().slice(0, 7);
+        const selectedMonth = App.historyMonth || currentMonth;
         
         // この従業員の全記録から月のリストを作成
         const allRecords = App.records.filter(r => r.employeeId === App.currentUser.id);
         const months = [...new Set(allRecords.map(r => r.workDate.slice(0, 7)))].sort().reverse();
         
         // 今月がリストになければ追加
-        const currentMonth = new Date().toISOString().slice(0, 7);
         if (!months.includes(currentMonth)) {
           months.unshift(currentMonth);
         }
@@ -4775,7 +4778,10 @@
         const selectedEmp = employees.find(e => e.id === selectedEmpId);
         
         // 選択中の月（デフォルトは今月）
-        const selectedMonth = App.employeeHistoryMonth || new Date().toISOString().slice(0, 7);
+        // 現在の年月を確実に取得
+        const nowDate = new Date();
+        const currentMonth = nowDate.getFullYear() + '-' + String(nowDate.getMonth() + 1).padStart(2, '0');
+        const selectedMonth = App.employeeHistoryMonth || currentMonth;
         
         // 従業員セレクトボックス
         let empOptions = '';
@@ -4783,14 +4789,12 @@
           empOptions += `<option value="${emp.id}" ${emp.id === selectedEmpId ? 'selected' : ''}>${emp.name}</option>`;
         });
         
-        // 月セレクトボックス（過去12ヶ月）
+        // 月セレクトボックス（過去7年=84ヶ月）
         let monthOptions = '';
-        const now = new Date();
-        for (let i = 0; i < 12; i++) {
-          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          const m = d.toISOString().slice(0, 7);
-          const [y, mo] = m.split('-');
-          const label = `${y}年${parseInt(mo)}月`;
+        for (let i = 0; i < 84; i++) {
+          const d = new Date(nowDate.getFullYear(), nowDate.getMonth() - i, 1);
+          const m = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+          const label = `${d.getFullYear()}年${d.getMonth() + 1}月`;
           monthOptions += `<option value="${m}" ${m === selectedMonth ? 'selected' : ''}>${label}</option>`;
         }
         
@@ -7940,21 +7944,8 @@
     async function initApp() {
       document.getElementById('app').innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;"><div style="font-size:48px;margin-bottom:20px;">⏳</div><div style="color:#94a3b8;">データ同期中...</div></div>';
       
-      // プライベート従業員のisPrivateを強制的に設定（LocalStorageの古いデータ対策）
+      // プライベート従業員ID（ハードコード）
       const privateEmployeeIds = ['10', '11']; // 戸塚力、戸塚志保
-      let needsSave = false;
-      App.employees.forEach(emp => {
-        if (privateEmployeeIds.includes(emp.id)) {
-          if (!emp.isPrivate) {
-            emp.isPrivate = true;
-            needsSave = true;
-            console.log('isPrivate設定:', emp.name);
-          }
-        }
-      });
-      if (needsSave) {
-        App.save();
-      }
       
       try {
         const loaded = await FirebaseSync.loadAllFromFirebase();
@@ -7962,16 +7953,23 @@
           await FirebaseSync.saveAllToFirebase();
         }
         
-        // Firebase読み込み後も再度チェック
+        // Firebase読み込み後、プライベート従業員のisPrivateを強制設定
+        let needsSave = false;
         App.employees.forEach(emp => {
           if (privateEmployeeIds.includes(emp.id)) {
             if (!emp.isPrivate) {
               emp.isPrivate = true;
-              console.log('isPrivate設定(Firebase後):', emp.name);
+              needsSave = true;
+              console.log('isPrivate強制設定:', emp.name, emp.id);
             }
           }
         });
-        App.save();
+        
+        // 変更があればFirebaseにも保存
+        if (needsSave) {
+          console.log('isPrivate設定をFirebaseに保存');
+          await FirebaseSync.saveAllToFirebase();
+        }
         
         FirebaseSync.startRealtimeSync();
         Views.render('login');
