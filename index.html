@@ -3078,7 +3078,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.2.1';
+    const APP_VERSION = 'v2.2.2';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -3289,7 +3289,6 @@
           ...this.employees.filter(e => e.isPrivate).map(e => e.id),
           ...PRIVATE_IDS
         ])];
-        const privateIds = this.employees.filter(e => e.isPrivate).map(e => e.id);
         return this.records.filter(r => !privateIds.includes(r.employeeId));
       },
       
