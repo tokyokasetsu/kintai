@@ -3078,7 +3078,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v1.9.1';
+    const APP_VERSION = 'v2.0.0';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -3207,7 +3207,7 @@
         return months.sort();
       },
       
-      // 類似現場名をチェック（同じ漢字が2文字以上含まれていたら候補を返す）
+      // 類似現場名をチェック（同じ漢字が5文字以上含まれていたら候補を返す）
       findSimilarSite: function(inputName) {
         if (!inputName || inputName.trim() === '') return null;
         
@@ -3215,7 +3215,7 @@
         
         // 入力から漢字を抽出
         const inputKanji = input.match(/[\u4e00-\u9faf]/g) || [];
-        if (inputKanji.length < 2) return null; // 漢字2文字未満は対象外
+        if (inputKanji.length < 5) return null; // 漢字5文字未満は対象外
         
         // 共通する漢字の数をカウント
         function countCommonKanji(s1, s2) {
@@ -3246,7 +3246,7 @@
           if (site.name === input) continue;
           
           const commonCount = countCommonKanji(input, site.name);
-          if (commonCount >= 2) {
+          if (commonCount >= 5) {
             // 最初に見つかった（＝先に登録された）現場を返す
             return site.name;
           }
@@ -3675,10 +3675,23 @@
       },
 
       clockIn: function() {
+        // 3ヶ月前の日付を計算
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0];
+        
+        // 3ヶ月以内に使われた現場IDを取得
+        const recentSiteIds = new Set();
+        App.records
+          .filter(r => r.workDate >= threeMonthsAgoStr)
+          .forEach(r => recentSiteIds.add(r.jobSiteId));
+        
         let siteOptions = '<option value="">-- 既存の現場から選ぶ --</option>';
-        App.jobSites.filter(s => s.isActive).forEach(site => {
-          siteOptions += `<option value="${site.id}">${site.name}</option>`;
-        });
+        App.jobSites
+          .filter(s => s.isActive && recentSiteIds.has(s.id))
+          .forEach(site => {
+            siteOptions += `<option value="${site.id}">${site.name}</option>`;
+          });
 
         let gpsHtml = '<p class="gps-loading">位置情報を取得中...</p>';
         if (App.gpsLocation) {
@@ -3899,8 +3912,9 @@
             recordMap[day].push(r);
           });
         
-        // 出勤日数をカウント
-        let workDays = 0;
+        // 出勤日数をカウント（日勤・夜勤別）
+        let dayShiftDays = 0;
+        let nightShiftDays = 0;
         
         // 日付一覧を生成
         let daysHtml = '';
@@ -3933,8 +3947,18 @@
           
           let statusHtml = '';
           if (dayRecords.length > 0) {
-            workDays++;
+            // 日勤・夜勤をカウント
             dayRecords.forEach(r => {
+              if (r.shiftType === 'night') {
+                nightShiftDays++;
+              } else {
+                dayShiftDays++;
+              }
+            });
+            
+            dayRecords.forEach(r => {
+              const isNight = r.shiftType === 'night';
+              const shiftIcon = isNight ? '🌙' : '☀️';
               const timeStr = App.formatTime(r.clockInTime) + '〜' + (r.clockOutTime ? App.formatTime(r.clockOutTime) : '勤務中');
               let hoursStr = '';
               if (r.workHours) {
@@ -3945,7 +3969,7 @@
               }
               statusHtml += `
                 <div class="day-record">
-                  <div class="day-site">🏗️ ${r.jobSiteName}</div>
+                  <div class="day-site">${shiftIcon} ${r.jobSiteName}</div>
                   <div class="day-time">${timeStr}${hoursStr}</div>
                 </div>
               `;
@@ -3961,6 +3985,8 @@
             </div>
           `;
         }
+        
+        const totalDays = dayShiftDays + nightShiftDays;
 
         return `
           <div class="header">
@@ -3975,8 +4001,16 @@
             </div>
             <div class="month-summary">
               <div class="month-summary-item">
-                <span class="month-summary-label">出勤日数</span>
-                <span class="month-summary-value">${workDays}日</span>
+                <span class="month-summary-label">☀️ 日勤</span>
+                <span class="month-summary-value">${dayShiftDays}日</span>
+              </div>
+              <div class="month-summary-item">
+                <span class="month-summary-label">🌙 夜勤</span>
+                <span class="month-summary-value">${nightShiftDays}日</span>
+              </div>
+              <div class="month-summary-item">
+                <span class="month-summary-label">合計</span>
+                <span class="month-summary-value">${totalDays}日</span>
               </div>
             </div>
             <div class="days-list">
@@ -4690,9 +4724,19 @@
             selectedEmpId = employees[0] ? employees[0].id : null;
             App.selectedEmployeeForHistory = selectedEmpId;
           }
+          // 選択された従業員がリストにない場合もリセット
+          if (!employees.find(e => e.id === selectedEmpId)) {
+            selectedEmpId = employees[0] ? employees[0].id : null;
+            App.selectedEmployeeForHistory = selectedEmpId;
+          }
         }
         
         const selectedEmp = employees.find(e => e.id === selectedEmpId);
+        
+        // 副管理者がプライベート従業員を見ようとしている場合は空表示
+        if (!isAdmin && selectedEmp && selectedEmp.isPrivate) {
+          selectedEmpId = null;
+        }
         
         // 選択中の月（デフォルトは今月）
         const selectedMonth = App.employeeHistoryMonth || new Date().toISOString().slice(0, 7);
@@ -4731,8 +4775,9 @@
             });
         }
         
-        // 出勤日数をカウント
-        let workDays = 0;
+        // 出勤日数をカウント（日勤・夜勤別）
+        let dayShiftDays = 0;
+        let nightShiftDays = 0;
         
         // 日付一覧を生成
         let daysHtml = '';
@@ -4764,8 +4809,18 @@
           
           let statusHtml = '';
           if (dayRecords.length > 0) {
-            workDays++;
+            // 日勤・夜勤をカウント
             dayRecords.forEach(r => {
+              if (r.shiftType === 'night') {
+                nightShiftDays++;
+              } else {
+                dayShiftDays++;
+              }
+            });
+            
+            dayRecords.forEach(r => {
+              const isNight = r.shiftType === 'night';
+              const shiftIcon = isNight ? '🌙' : '☀️';
               const timeStr = App.formatTime(r.clockInTime) + '〜' + (r.clockOutTime ? App.formatTime(r.clockOutTime) : '勤務中');
               let hoursStr = '';
               if (r.workHours) {
@@ -4775,9 +4830,12 @@
                 hoursStr = `（実働 ${formatMinutes(actualMinutes)}）`;
               }
               statusHtml += `
-                <div class="day-record">
-                  <div class="day-site">🏗️ ${r.jobSiteName}</div>
-                  <div class="day-time">${timeStr}${hoursStr}</div>
+                <div class="day-record emp-hist-record" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px;">
+                  <div style="flex: 1;">
+                    <div class="day-site">${shiftIcon} ${r.jobSiteName}</div>
+                    <div class="day-time">${timeStr}${hoursStr}</div>
+                  </div>
+                  <button class="edit-record-btn" data-record-id="${r.id}" style="padding: 6px 12px; background: #3b82f6; color: #fff; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; white-space: nowrap;">編集</button>
                 </div>
               `;
             });
@@ -4793,6 +4851,7 @@
           `;
         }
         
+        const totalDays = dayShiftDays + nightShiftDays;
         const backView = isAdmin ? 'admin' : 'subadmin';
 
         return `
@@ -4811,11 +4870,19 @@
             </div>
             <div class="month-summary">
               <div class="month-summary-item">
-                <span class="month-summary-label">${selectedEmp ? selectedEmp.name + 'さんの出勤日数' : '出勤日数'}</span>
-                <span class="month-summary-value">${workDays}日</span>
+                <span class="month-summary-label">☀️ 日勤</span>
+                <span class="month-summary-value">${dayShiftDays}日</span>
+              </div>
+              <div class="month-summary-item">
+                <span class="month-summary-label">🌙 夜勤</span>
+                <span class="month-summary-value">${nightShiftDays}日</span>
+              </div>
+              <div class="month-summary-item">
+                <span class="month-summary-label">合計</span>
+                <span class="month-summary-value">${totalDays}日</span>
               </div>
             </div>
-            <div class="days-list">
+            <div class="days-list" id="empHistoryDaysList">
               ${daysHtml}
             </div>
           </div>
@@ -5716,6 +5783,69 @@
               self.render('employeeHistory');
             });
           }
+          
+          // 編集ボタン
+          const editBtns = document.querySelectorAll('.edit-record-btn');
+          editBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const recordId = this.getAttribute('data-record-id');
+              const record = App.records.find(r => r.id === recordId);
+              if (!record) {
+                alert('記録が見つかりません');
+                return;
+              }
+              
+              // 編集ダイアログを表示
+              const currentClockIn = record.clockInTime ? new Date(record.clockInTime).toTimeString().slice(0,5) : '';
+              const currentClockOut = record.clockOutTime ? new Date(record.clockOutTime).toTimeString().slice(0,5) : '';
+              
+              const newClockIn = prompt('始業時刻 (HH:MM)', currentClockIn);
+              if (newClockIn === null) return;
+              
+              const newClockOut = prompt('終業時刻 (HH:MM)（未終業の場合は空欄）', currentClockOut);
+              if (newClockOut === null) return;
+              
+              // 時刻を更新
+              if (newClockIn) {
+                const [h, m] = newClockIn.split(':').map(Number);
+                const newDate = new Date(record.clockInTime);
+                newDate.setHours(h, m, 0, 0);
+                record.clockInTime = newDate.toISOString();
+              }
+              
+              if (newClockOut) {
+                const [h, m] = newClockOut.split(':').map(Number);
+                let newDate;
+                if (record.clockOutTime) {
+                  newDate = new Date(record.clockOutTime);
+                } else {
+                  newDate = new Date(record.clockInTime);
+                }
+                newDate.setHours(h, m, 0, 0);
+                // 終業が始業より早い場合は翌日と判断
+                if (newDate < new Date(record.clockInTime)) {
+                  newDate.setDate(newDate.getDate() + 1);
+                }
+                record.clockOutTime = newDate.toISOString();
+                record.status = 'completed';
+                
+                // 勤務時間を再計算
+                const clockInTime = new Date(record.clockInTime);
+                const clockOutTime = new Date(record.clockOutTime);
+                const workHours = (clockOutTime - clockInTime) / (1000 * 60 * 60);
+                record.workHours = Math.round(workHours * 100) / 100;
+              } else {
+                // 終業を空にした場合
+                record.clockOutTime = null;
+                record.status = 'working';
+                record.workHours = null;
+              }
+              
+              App.save();
+              alert('更新しました');
+              self.render('employeeHistory');
+            });
+          });
         }
 
         // 始業打刻
@@ -5773,12 +5903,12 @@
               if (customJobSite.value.trim()) {
                 let inputName = customJobSite.value.trim();
                 
-                // 類似現場名をチェック（漢字2文字以上一致）
+                // 類似現場名をチェック（漢字5文字以上一致）
                 const similarSite = App.findSimilarSite(inputName);
                 
                 if (similarSite) {
                   alert("類似現場: " + similarSite);
-                  if (confirm(`「${similarSite}」の現場ではありませんか？\n\n[OK] → 「${similarSite}」を使用\n[キャンセル] → 「${inputName}」で新規登録`)) {
+                  if (confirm(`「${similarSite}」の現場ではありませんか？\n\n[OK] → 「${similarSite}」を使用（収支データも統合）\n[キャンセル] → 「${inputName}」で新規登録`)) {
                     siteName = similarSite;
                   } else {
                     siteName = inputName;
@@ -5791,6 +5921,18 @@
                 const existingSite = App.jobSites.find(s => s.name === siteName);
                 if (existingSite) {
                   siteId = existingSite.id;
+                  
+                  // 類似現場が選ばれた場合、収支データを統合
+                  if (similarSite && siteName === similarSite) {
+                    // 入力された名前で登録されていた収支データがあれば、類似現場に統合
+                    if (App.siteFinanceData && App.siteFinanceData[inputName]) {
+                      const oldData = App.siteFinanceData[inputName];
+                      if (!App.siteFinanceData[siteName]) {
+                        App.siteFinanceData[siteName] = oldData;
+                      }
+                      delete App.siteFinanceData[inputName];
+                    }
+                  }
                 } else {
                   // 新しい現場をマスタに自動追加
                   const newSite = {
