@@ -3078,7 +3078,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v1.8.1';
+    const APP_VERSION = 'v1.9.0';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -3444,9 +3444,6 @@
               <div class="input-group">
                 <label class="input-label">パスワード</label>
                 <input type="password" id="loginPassword" class="login-input" placeholder="パスワードを入力" autocomplete="off" inputmode="latin">
-              </div>
-              <div class="input-group" style="margin-top: 12px; margin-bottom: 20px;">
-                <button type="button" id="rememberIdBtn" style="width: 100%; padding: 12px; background: #334155; border: 2px solid #475569; border-radius: 8px; color: #94a3b8; font-size: 14px; cursor: pointer;">☐ IDを記憶する</button>
               </div>
               <p id="loginError" class="login-error">IDまたはパスワードが正しくありません</p>
               <button id="loginBtn" class="login-btn">ログイン</button>
@@ -4043,6 +4040,10 @@
                   <span class="menu-icon">👤</span>
                   <span>従業員マスタ</span>
                 </button>
+                <button class="menu-card" data-view="employeeHistory">
+                  <span class="menu-icon">📆</span>
+                  <span>従業員出勤履歴</span>
+                </button>
                 <button class="menu-card" data-view="siteMaster">
                   <span class="menu-icon">🏢</span>
                   <span>現場マスタ</span>
@@ -4166,6 +4167,10 @@
                 <button class="menu-card" data-view="siteFinance">
                   <span class="menu-icon">💰</span>
                   <span>各現場収支</span>
+                </button>
+                <button class="menu-card" data-view="employeeHistory">
+                  <span class="menu-icon">📆</span>
+                  <span>従業員出勤履歴</span>
                 </button>
                 <button class="menu-card ${pendingCorrections > 0 ? 'has-alert' : ''}" data-view="correctionList">
                   <span class="menu-icon">📝</span>
@@ -4639,6 +4644,125 @@
                 <input type="number" id="materialRental" class="site-report-input" value="0">
               </div>
               <button class="site-report-save-btn" id="saveMaterialMonth">追加</button>
+            </div>
+          </div>
+        `;
+      },
+
+      employeeHistory: function() {
+        const isAdmin = App.currentUser.role === 'admin';
+        
+        // 従業員リスト（管理者はプライベートも表示、副管理者は非表示）
+        let employees = App.employees.filter(e => e.id !== 'admin' && e.isActive);
+        if (!isAdmin) {
+          employees = employees.filter(e => !e.isPrivate);
+        }
+        
+        // 選択中の従業員（デフォルトは最初の従業員）
+        const selectedEmpId = App.selectedEmployeeForHistory || (employees[0] ? employees[0].id : null);
+        const selectedEmp = employees.find(e => e.id === selectedEmpId);
+        
+        // 選択中の月（デフォルトは今月）
+        const selectedMonth = App.employeeHistoryMonth || new Date().toISOString().slice(0, 7);
+        
+        // 従業員セレクトボックス
+        let empOptions = '';
+        employees.forEach(emp => {
+          empOptions += `<option value="${emp.id}" ${emp.id === selectedEmpId ? 'selected' : ''}>${emp.name}</option>`;
+        });
+        
+        // 月セレクトボックス（過去12ヶ月）
+        let monthOptions = '';
+        const now = new Date();
+        for (let i = 0; i < 12; i++) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const m = d.toISOString().slice(0, 7);
+          const [y, mo] = m.split('-');
+          const label = `${y}年${parseInt(mo)}月`;
+          monthOptions += `<option value="${m}" ${m === selectedMonth ? 'selected' : ''}>${label}</option>`;
+        }
+        
+        // 選択月の1日〜末日を取得
+        const [year, month] = selectedMonth.split('-').map(Number);
+        const lastDay = new Date(year, month, 0).getDate();
+        const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+        
+        // 選択した従業員の記録をマップ化
+        const recordMap = {};
+        if (selectedEmpId) {
+          App.records
+            .filter(r => r.employeeId === selectedEmpId && r.workDate.startsWith(selectedMonth))
+            .forEach(r => {
+              const day = parseInt(r.workDate.split('-')[2]);
+              if (!recordMap[day]) recordMap[day] = [];
+              recordMap[day].push(r);
+            });
+        }
+        
+        // 出勤日数をカウント
+        let workDays = 0;
+        
+        // 日付一覧を生成
+        let daysHtml = '';
+        for (let day = 1; day <= lastDay; day++) {
+          const dateObj = new Date(year, month - 1, day);
+          const dayOfWeek = dateObj.getDay();
+          const weekdayStr = weekdays[dayOfWeek];
+          const isSunday = dayOfWeek === 0;
+          const isSaturday = dayOfWeek === 6;
+          const dateStr = `${month}/${day}（${weekdayStr}）`;
+          
+          const dayRecords = recordMap[day] || [];
+          
+          let statusHtml = '';
+          if (dayRecords.length > 0) {
+            workDays++;
+            dayRecords.forEach(r => {
+              const timeStr = App.formatTime(r.clockInTime) + '〜' + (r.clockOutTime ? App.formatTime(r.clockOutTime) : '勤務中');
+              const hoursStr = r.workHours ? `（${r.workHours.toFixed(1)}h）` : '';
+              statusHtml += `
+                <div class="day-record">
+                  <div class="day-site">🏗️ ${r.jobSiteName}</div>
+                  <div class="day-time">${timeStr}${hoursStr}</div>
+                </div>
+              `;
+            });
+          } else {
+            statusHtml = `<span class="day-off">休み</span>`;
+          }
+          
+          daysHtml += `
+            <div class="day-row ${isSunday ? 'sunday' : ''} ${isSaturday ? 'saturday' : ''} ${dayRecords.length > 0 ? 'worked' : ''}">
+              <div class="day-date">${dateStr}</div>
+              <div class="day-status">${statusHtml}</div>
+            </div>
+          `;
+        }
+        
+        const backView = isAdmin ? 'admin' : 'subadmin';
+
+        return `
+          <div class="header">
+            <button id="backBtn" class="back-btn" data-view="${backView}">← 戻る</button>
+            <span class="header-title">従業員出勤履歴</span>
+          </div>
+          <div class="list-content">
+            <div class="filter-section" style="display: flex; gap: 12px; margin-bottom: 16px;">
+              <select id="empHistorySelect" class="month-select" style="flex: 1;">
+                ${empOptions}
+              </select>
+              <select id="empHistoryMonthSelect" class="month-select" style="flex: 1;">
+                ${monthOptions}
+              </select>
+            </div>
+            <div class="month-summary">
+              <div class="month-summary-item">
+                <span class="month-summary-label">${selectedEmp ? selectedEmp.name + 'さんの出勤日数' : '出勤日数'}</span>
+                <span class="month-summary-value">${workDays}日</span>
+              </div>
+            </div>
+            <div class="days-list">
+              ${daysHtml}
             </div>
           </div>
         `;
@@ -5192,42 +5316,15 @@
           const loginIdInput = document.getElementById('loginId');
           const loginPasswordInput = document.getElementById('loginPassword');
           const loginError = document.getElementById('loginError');
-          const rememberIdBtn = document.getElementById('rememberIdBtn');
-          let rememberIdChecked = false;
 
           // 記憶されたIDを読み込み
           const savedId = localStorage.getItem('kintai_saved_id');
           if (savedId && loginIdInput) {
             loginIdInput.value = savedId;
-            rememberIdChecked = true;
-            if (rememberIdBtn) {
-              rememberIdBtn.textContent = '☑ IDを記憶する';
-              rememberIdBtn.style.background = '#3b82f6';
-              rememberIdBtn.style.borderColor = '#3b82f6';
-              rememberIdBtn.style.color = '#fff';
-            }
             // IDが入力済みならパスワード欄にフォーカス
             if (loginPasswordInput) {
               setTimeout(function() { loginPasswordInput.focus(); }, 100);
             }
-          }
-
-          // 記憶ボタンのトグル
-          if (rememberIdBtn) {
-            rememberIdBtn.addEventListener('click', function() {
-              rememberIdChecked = !rememberIdChecked;
-              if (rememberIdChecked) {
-                this.textContent = '☑ IDを記憶する';
-                this.style.background = '#3b82f6';
-                this.style.borderColor = '#3b82f6';
-                this.style.color = '#fff';
-              } else {
-                this.textContent = '☐ IDを記憶する';
-                this.style.background = '#334155';
-                this.style.borderColor = '#475569';
-                this.style.color = '#94a3b8';
-              }
-            });
           }
 
           // 半角変換関数
@@ -5270,12 +5367,8 @@
                 App.currentUser = emp;
                 loginError.classList.remove('show');
                 
-                // IDを記憶するかどうか
-                if (rememberIdChecked) {
-                  localStorage.setItem('kintai_saved_id', id);
-                } else {
-                  localStorage.removeItem('kintai_saved_id');
-                }
+                // IDを自動記憶
+                localStorage.setItem('kintai_saved_id', id);
                 
                 // ログイン時に最新データを取得（日付ズレ防止）
                 if (typeof FirebaseSync !== 'undefined' && FirebaseSync.loadAllFromFirebase) {
@@ -5547,6 +5640,26 @@
             monthSelect.addEventListener('change', function() {
               App.historyMonth = this.value;
               self.render('history');
+            });
+          }
+        }
+
+        // 従業員出勤履歴（管理者・副管理者用）
+        if (view === 'employeeHistory') {
+          const empSelect = document.getElementById('empHistorySelect');
+          const monthSelect = document.getElementById('empHistoryMonthSelect');
+          
+          if (empSelect) {
+            empSelect.addEventListener('change', function() {
+              App.selectedEmployeeForHistory = this.value;
+              self.render('employeeHistory');
+            });
+          }
+          
+          if (monthSelect) {
+            monthSelect.addEventListener('change', function() {
+              App.employeeHistoryMonth = this.value;
+              self.render('employeeHistory');
             });
           }
         }
