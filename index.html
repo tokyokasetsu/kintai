@@ -3018,6 +3018,8 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
+    const APP_VERSION = 'v1.7.0';
+    const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
     }
@@ -3383,9 +3385,16 @@
                 <label class="input-label">パスワード</label>
                 <input type="password" id="loginPassword" class="login-input" placeholder="パスワードを入力" autocomplete="off" inputmode="latin">
               </div>
+              <div class="input-group" style="margin-top: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #94a3b8; cursor: pointer;">
+                  <input type="checkbox" id="rememberIdCheck" style="width: 18px; height: 18px; cursor: pointer;">
+                  IDを記憶する
+                </label>
+              </div>
               <p id="loginError" class="login-error">IDまたはパスワードが正しくありません</p>
               <button id="loginBtn" class="login-btn">ログイン</button>
               <p class="login-hint">※ 初期パスワードは「1234」です（管理者は「admin」）</p>
+              <p style="text-align: center; margin-top: 24px; font-size: 11px; color: #64748b;">${APP_VERSION} (${APP_UPDATE_DATE})</p>
             </div>
           </div>
         `;
@@ -5104,6 +5113,20 @@
           const loginIdInput = document.getElementById('loginId');
           const loginPasswordInput = document.getElementById('loginPassword');
           const loginError = document.getElementById('loginError');
+          const rememberIdCheck = document.getElementById('rememberIdCheck');
+
+          // 記憶されたIDを読み込み
+          const savedId = localStorage.getItem('kintai_saved_id');
+          if (savedId && loginIdInput) {
+            loginIdInput.value = savedId;
+            if (rememberIdCheck) {
+              rememberIdCheck.checked = true;
+            }
+            // IDが入力済みならパスワード欄にフォーカス
+            if (loginPasswordInput) {
+              setTimeout(function() { loginPasswordInput.focus(); }, 100);
+            }
+          }
 
           // 半角変換関数
           function toHalfWidth(str) {
@@ -5144,12 +5167,47 @@
               if (emp) {
                 App.currentUser = emp;
                 loginError.classList.remove('show');
-                if (emp.role === 'admin') {
-                  self.render('admin');
-                } else if (emp.role === 'subadmin') {
-                  self.render('subadmin');
+                
+                // IDを記憶するかどうか
+                if (rememberIdCheck && rememberIdCheck.checked) {
+                  localStorage.setItem('kintai_saved_id', id);
                 } else {
-                  self.render('home');
+                  localStorage.removeItem('kintai_saved_id');
+                }
+                
+                // ログイン時に最新データを取得（日付ズレ防止）
+                if (typeof FirebaseSync !== 'undefined' && FirebaseSync.loadAllFromFirebase) {
+                  FirebaseSync.loadAllFromFirebase().then(function() {
+                    // 最新のemployeeデータでcurrentUserを更新
+                    const updatedEmp = App.employees.find(e => e.id === id);
+                    if (updatedEmp) {
+                      App.currentUser = updatedEmp;
+                    }
+                    if (emp.role === 'admin') {
+                      self.render('admin');
+                    } else if (emp.role === 'subadmin') {
+                      self.render('subadmin');
+                    } else {
+                      self.render('home');
+                    }
+                  }).catch(function() {
+                    // Firebase失敗時はそのまま進む
+                    if (emp.role === 'admin') {
+                      self.render('admin');
+                    } else if (emp.role === 'subadmin') {
+                      self.render('subadmin');
+                    } else {
+                      self.render('home');
+                    }
+                  });
+                } else {
+                  if (emp.role === 'admin') {
+                    self.render('admin');
+                  } else if (emp.role === 'subadmin') {
+                    self.render('subadmin');
+                  } else {
+                    self.render('home');
+                  }
                 }
               } else {
                 loginError.classList.add('show');
@@ -6983,7 +7041,7 @@
 
     // アクセス認証画面を表示
     function showAccessAuth() {
-      const isAuthenticated = sessionStorage.getItem('kintai_access_auth');
+      const isAuthenticated = localStorage.getItem('kintai_access_auth');
       if (isAuthenticated === 'true') {
         initApp();
         return;
@@ -7017,7 +7075,7 @@
       const errorDiv = document.getElementById('accessError');
       
       if (password === ACCESS_PASSWORD) {
-        sessionStorage.setItem('kintai_access_auth', 'true');
+        localStorage.setItem('kintai_access_auth', 'true');
         initApp();
       } else {
         errorDiv.textContent = 'パスワードが正しくありません';
