@@ -3018,7 +3018,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v1.7.0';
+    const APP_VERSION = 'v1.7.1';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -5170,14 +5170,12 @@
                 
                 // IDを記憶するかどうか（クリック時に再取得）
                 const checkbox = document.getElementById('rememberIdCheck');
-                const shouldRemember = checkbox && checkbox.checked;
-                console.log('ID記憶チェック:', shouldRemember, 'checkbox:', checkbox);
-                if (shouldRemember) {
+                alert('チェックボックス: ' + (checkbox ? 'あり' : 'なし') + '\nチェック状態: ' + (checkbox ? checkbox.checked : '不明'));
+                if (checkbox && checkbox.checked) {
                   localStorage.setItem('kintai_saved_id', id);
-                  console.log('ID保存しました:', id);
+                  alert('IDを保存しました: ' + id);
                 } else {
                   localStorage.removeItem('kintai_saved_id');
-                  console.log('ID削除しました');
                 }
                 
                 // ログイン時に最新データを取得（日付ズレ防止）
