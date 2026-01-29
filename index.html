@@ -3018,7 +3018,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v1.7.1';
+    const APP_VERSION = 'v1.7.2';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -3386,10 +3386,10 @@
                 <input type="password" id="loginPassword" class="login-input" placeholder="パスワードを入力" autocomplete="off" inputmode="latin">
               </div>
               <div class="input-group" style="margin-top: 8px;">
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #94a3b8; cursor: pointer;">
-                  <input type="checkbox" id="rememberIdCheck" style="width: 18px; height: 18px; cursor: pointer;">
-                  IDを記憶する
-                </label>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <input type="checkbox" id="rememberIdCheck" style="width: 20px; height: 20px; cursor: pointer; accent-color: #3b82f6;">
+                  <label for="rememberIdCheck" style="font-size: 14px; color: #94a3b8; cursor: pointer;">IDを記憶する</label>
+                </div>
               </div>
               <p id="loginError" class="login-error">IDまたはパスワードが正しくありません</p>
               <button id="loginBtn" class="login-btn">ログイン</button>
