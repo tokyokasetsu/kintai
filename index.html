@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="勤怠管理【東京架設】">
@@ -3187,10 +3188,34 @@
           // 復元前に現在のデータをバックアップ
           await this.createBackup();
           
+          // 【重要】当日のデータを保持
+          const today = new Date().toISOString().slice(0, 10);
+          const todayRecords = App.records.filter(r => r.workDate === today);
+          console.log('[復元] 当日の記録を保持:', todayRecords.length, '件');
+          
+          // バックアップから復元
+          const backupRecords = data.records || [];
+          
+          // バックアップの記録から当日以外を取得
+          const backupOldRecords = backupRecords.filter(r => r.workDate !== today);
+          
+          // マージ: バックアップの過去データ + 現在の当日データ
+          const mergedRecords = [...backupOldRecords, ...todayRecords];
+          
+          // 重複除去（IDベース）
+          const uniqueRecords = [];
+          const seenIds = new Set();
+          mergedRecords.forEach(r => {
+            if (!seenIds.has(r.id)) {
+              seenIds.add(r.id);
+              uniqueRecords.push(r);
+            }
+          });
+          
           // 復元
           App.employees = data.employees || App.employees;
           App.jobSites = data.jobSites || App.jobSites;
-          App.records = data.records || [];
+          App.records = uniqueRecords;
           App.corrections = data.corrections || [];
           App.addressRequests = data.addressRequests || [];
           App.deletedEmployees = data.deletedEmployees || [];
@@ -3199,10 +3224,10 @@
           App.announcement = data.announcement || null;
           
           // Firebaseに保存
-          App._firebaseRecordsCount = App.records.length; // 安全チェック用に更新
+          App._firebaseRecordsCount = App.records.length;
           await this.saveAllToFirebase();
           
-          console.log('[バックアップ] 復元完了:', backupId);
+          console.log('[バックアップ] 復元完了:', backupId, '総記録:', App.records.length);
           return true;
         } catch (error) {
           console.error('[バックアップ] 復元エラー:', error);
@@ -3228,7 +3253,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.4.0';
+    const APP_VERSION = 'v2.4.1';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -7479,7 +7504,7 @@
             document.querySelectorAll('.restore-backup-btn').forEach(function(btn) {
               btn.addEventListener('click', async function() {
                 const backupId = this.getAttribute('data-backup-id');
-                if (!confirm('このバックアップからデータを復元しますか？\\n\\n現在のデータは上書きされます。\\n（復元前に自動バックアップを作成します）')) {
+                if (!confirm('このバックアップからデータを復元しますか？\n\n✅ 当日のデータは保持されます\n✅ 復元前に自動バックアップを作成します')) {
                   return;
                 }
                 
