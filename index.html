@@ -5168,11 +5168,16 @@
                 App.currentUser = emp;
                 loginError.classList.remove('show');
                 
-                // IDを記憶するかどうか
-                if (rememberIdCheck && rememberIdCheck.checked) {
+                // IDを記憶するかどうか（クリック時に再取得）
+                const checkbox = document.getElementById('rememberIdCheck');
+                const shouldRemember = checkbox && checkbox.checked;
+                console.log('ID記憶チェック:', shouldRemember, 'checkbox:', checkbox);
+                if (shouldRemember) {
                   localStorage.setItem('kintai_saved_id', id);
+                  console.log('ID保存しました:', id);
                 } else {
                   localStorage.removeItem('kintai_saved_id');
+                  console.log('ID削除しました');
                 }
                 
                 // ログイン時に最新データを取得（日付ズレ防止）
