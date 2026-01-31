@@ -3432,7 +3432,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.6.3';
+    const APP_VERSION = 'v2.7.0';
     const APP_UPDATE_DATE = '2026/01/31';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -3864,6 +3864,14 @@
               <h1 class="app-title">勤怠管理</h1>
               <p class="app-subtitle">東京架設</p>
             </div>
+            <div class="refresh-notice" style="background: #450a0a; border: 1px solid #dc2626; border-radius: 8px; padding: 12px; margin-bottom: 16px; text-align: center;">
+              <p style="color: #fca5a5; font-size: 13px; margin: 0;">
+                🔄 ログイン前にページを更新してください
+              </p>
+              <button onclick="location.reload(true)" style="margin-top: 8px; padding: 8px 20px; background: #dc2626; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                🔄 ページを更新する
+              </button>
+            </div>
             <div>
               <div class="input-group">
                 <label class="input-label">従業員ID</label>
@@ -4276,7 +4284,7 @@
                   </select>
                 </div>
                 <button id="submitOvertimeBtn" class="settings-save-btn" style="width: 100%; margin-top: 12px;">申請する</button>
-                <p class="settings-card-note">※ 申請は管理者の承認後に勤怠記録に反映されます</p>
+                <p class="settings-card-note">※ 残業時間は即時反映されます</p>
               </div>
             </div>
             
@@ -6329,33 +6337,6 @@
           }
           
           // 残業申請
-          const submitOvertimeBtn = document.getElementById('submitOvertimeBtn');
-          if (submitOvertimeBtn) {
-            submitOvertimeBtn.addEventListener('click', function() {
-              const workDate = document.getElementById('overtimeDateInput').value;
-              const hours = parseInt(document.getElementById('overtimeHoursInput').value);
-              
-              if (!workDate) {
-                alert('日付を選択してください');
-                return;
-              }
-              
-              if (!App.overtimeRequests) App.overtimeRequests = [];
-              
-              App.overtimeRequests.push({
-                id: Date.now().toString(),
-                employeeId: App.currentUser.id,
-                employeeName: App.currentUser.name,
-                workDate: workDate,
-                hours: hours,
-                status: 'pending',
-                createdAt: new Date().toISOString()
-              });
-              App.save();
-              alert('残業申請を送信しました。管理者が承認後に反映されます。');
-              Router.navigate('overtimeRequest');
-            });
-          }
         }
         
         // 残業申請画面（従業員用）
@@ -6373,17 +6354,31 @@
               
               if (!App.overtimeRequests) App.overtimeRequests = [];
               
+              // 即時承認として登録
+              const requestId = Date.now().toString();
               App.overtimeRequests.push({
-                id: Date.now().toString(),
+                id: requestId,
                 employeeId: App.currentUser.id,
                 employeeName: App.currentUser.name,
                 workDate: workDate,
                 hours: hours,
-                status: 'pending',
-                createdAt: new Date().toISOString()
+                status: 'approved',
+                createdAt: new Date().toISOString(),
+                approvedAt: new Date().toISOString()
               });
+              
+              // 対象日のレコードに残業時間を反映
+              const targetRecord = App.records.find(r => 
+                r.employeeId === App.currentUser.id && 
+                r.workDate === workDate &&
+                r.status === 'completed'
+              );
+              if (targetRecord) {
+                targetRecord.overtimeHours = (targetRecord.overtimeHours || 0) + hours;
+              }
+              
               App.save();
-              alert('残業申請を送信しました。管理者が承認後に反映されます。');
+              alert(`残業${hours}時間を登録しました。`);
               self.render('overtimeRequest');
             });
           }
