@@ -576,6 +576,171 @@
       color: #64748b;
       text-align: center;
     }
+    
+    /* 残業申請カード */
+    .overtime-request-card {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border-left: 4px solid #f59e0b;
+    }
+    .overtime-request-card.approved {
+      border-left-color: #10b981;
+    }
+    .overtime-request-card.rejected {
+      border-left-color: #ef4444;
+      opacity: 0.7;
+    }
+    .overtime-request-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .overtime-request-employee {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .overtime-request-status {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+    .overtime-request-status.pending {
+      background-color: #f59e0b;
+      color: #000;
+    }
+    .overtime-request-status.approved {
+      background-color: #10b981;
+      color: #fff;
+    }
+    .overtime-request-status.rejected {
+      background-color: #ef4444;
+      color: #fff;
+    }
+    .overtime-request-detail {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      color: #e2e8f0;
+      background-color: #0f172a;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    .overtime-request-created {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 12px;
+    }
+    .overtime-request-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .approve-overtime-btn, .reject-overtime-btn, .delete-overtime-btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .approve-overtime-btn {
+      background-color: #10b981;
+      color: #fff;
+    }
+    .reject-overtime-btn {
+      background-color: #ef4444;
+      color: #fff;
+    }
+    .delete-overtime-btn {
+      background-color: #64748b;
+      color: #fff;
+    }
+    .overtime-add-section {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .overtime-add-form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .overtime-add-form select, .overtime-add-form input {
+      flex: 1;
+      min-width: 120px;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background-color: #0f172a;
+      color: #f1f5f9;
+      font-size: 14px;
+    }
+    .overtime-add-form button {
+      padding: 10px 20px;
+      background-color: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    
+    /* 従業員画面の残業申請履歴 */
+    .overtime-list {
+      margin-top: 12px;
+    }
+    .overtime-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      background-color: #0f172a;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .overtime-item.pending {
+      border-left: 3px solid #f59e0b;
+    }
+    .overtime-item.approved {
+      border-left: 3px solid #10b981;
+    }
+    .overtime-item.rejected {
+      border-left: 3px solid #ef4444;
+      opacity: 0.6;
+    }
+    .overtime-date {
+      color: #94a3b8;
+    }
+    .overtime-hours {
+      color: #f1f5f9;
+      font-weight: 600;
+    }
+    .overtime-status {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 10px;
+    }
+    .overtime-status.pending {
+      background-color: #f59e0b;
+      color: #000;
+    }
+    .overtime-status.approved {
+      background-color: #10b981;
+      color: #fff;
+    }
+    .overtime-status.rejected {
+      background-color: #ef4444;
+      color: #fff;
+    }
+    
     .history-btn {
       width: 100%;
       padding: 16px;
@@ -3022,6 +3187,7 @@
           records: App.records,
           corrections: App.corrections || [],
           addressRequests: App.addressRequests || [],
+          overtimeRequests: App.overtimeRequests || [],
           deletedEmployees: App.deletedEmployees || [],
           siteDailyReports: App.siteDailyReports || {},
           siteFinanceData: App.siteFinanceData || {},
@@ -3047,6 +3213,7 @@
           if (data.records) App.records = data.records;
           if (data.corrections) App.corrections = data.corrections;
           if (data.addressRequests) App.addressRequests = data.addressRequests;
+          if (data.overtimeRequests) App.overtimeRequests = data.overtimeRequests;
           if (data.deletedEmployees) App.deletedEmployees = data.deletedEmployees;
           if (data.siteDailyReports) App.siteDailyReports = data.siteDailyReports;
           if (data.siteFinanceData) App.siteFinanceData = data.siteFinanceData;
@@ -3058,6 +3225,7 @@
           Storage.set('records', App.records);
           Storage.set('corrections', App.corrections);
           Storage.set('addressRequests', App.addressRequests);
+          Storage.set('overtimeRequests', App.overtimeRequests);
           Storage.set('deletedEmployees', App.deletedEmployees);
           Storage.set('siteDailyReports', App.siteDailyReports);
           Storage.set('siteFinanceData', App.siteFinanceData);
@@ -3253,8 +3421,8 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.5.0';
-    const APP_UPDATE_DATE = '2026/01/29';
+    const APP_VERSION = 'v2.6.0';
+    const APP_UPDATE_DATE = '2026/01/31';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
     }
@@ -3285,6 +3453,7 @@
       records: Storage.get('records', []),
       corrections: Storage.get('corrections', []),
       addressRequests: Storage.get('addressRequests', []),
+      overtimeRequests: Storage.get('overtimeRequests', []),
       deletedEmployees: Storage.get('deletedEmployees', []),
       // 現場日報データ（日付_現場名をキーとして管理）
       siteDailyReports: Storage.get('siteDailyReports', {}),
@@ -3304,6 +3473,7 @@
         Storage.set('records', this.records);
         Storage.set('corrections', this.corrections);
         Storage.set('addressRequests', this.addressRequests);
+        Storage.set('overtimeRequests', this.overtimeRequests);
         Storage.set('deletedEmployees', this.deletedEmployees);
         Storage.set('siteDailyReports', this.siteDailyReports);
         Storage.set('siteFinanceData', this.siteFinanceData);
@@ -3710,21 +3880,21 @@
         
         let statusHtml = '<p class="status-text">未始業</p>';
         if (isWorking) {
-          const shiftIcon = workingRecord.shiftType === 'night' ? '🌙 夜勤' : '☀️ 日勤';
+          const shiftLabel = workingRecord.shiftType === 'night' ? '夜勤' : '日勤';
           statusHtml = `
             <p class="status-text">🟢 勤務中</p>
-            ${!showTimes ? '<p class="status-detail">' + shiftIcon + '</p>' : ''}
+            ${!showTimes ? '<p class="status-detail">区分: ' + shiftLabel + '</p>' : ''}
             ${showTimes ? '<p class="status-detail">始業: ' + App.formatTime(workingRecord.clockInTime) + '</p>' : ''}
             <p class="status-detail">現場: ${workingRecord.jobSiteName}</p>
           `;
         } else if (completedRecords.length > 0) {
           const lastRecord = completedRecords[completedRecords.length - 1];
           const totalHours = completedRecords.reduce((sum, r) => sum + (r.workHours || 0), 0);
-          const lastShiftIcon = lastRecord.shiftType === 'night' ? '🌙 夜勤' : '☀️ 日勤';
+          const lastShiftLabel = lastRecord.shiftType === 'night' ? '夜勤' : '日勤';
           statusHtml = `
             <p class="status-text">✅ 本日 ${completedRecords.length}回 勤務完了</p>
             <p class="status-otsukare">お疲れさまでした！</p>
-            ${!showTimes ? '<p class="status-detail">' + lastShiftIcon + '</p>' : ''}
+            ${!showTimes ? '<p class="status-detail">区分: ' + lastShiftLabel + '</p>' : ''}
             ${showTimes ? '<p class="status-detail">合計勤務時間: ' + totalHours.toFixed(1) + '時間</p>' : ''}
             ${showTimes ? '<p class="status-detail">最終: ' + App.formatTime(lastRecord.clockInTime) + ' 〜 ' + App.formatTime(lastRecord.clockOutTime) + '</p>' : ''}
             <p class="status-detail">現場: ${lastRecord.jobSiteName}</p>
@@ -3736,11 +3906,11 @@
         if (todayRecords.length > 0) {
           todayHistoryHtml = '<div class="today-history"><p class="section-title">本日の勤怠</p>';
           todayRecords.forEach((r, index) => {
-            const shiftIcon = r.shiftType === 'night' ? '🌙' : '☀️';
+            const shiftLabel = r.shiftType === 'night' ? '夜勤' : '日勤';
             todayHistoryHtml += `
               <div class="today-record">
                 <span class="today-record-num">${index + 1}回目</span>
-                ${!showTimes ? '<span class="today-record-shift">' + shiftIcon + '</span>' : ''}
+                ${!showTimes ? '<span class="today-record-shift">' + shiftLabel + '</span>' : ''}
                 <span class="today-record-site">${r.jobSiteName}</span>
                 ${showTimes ? '<span class="today-record-time">' + App.formatTime(r.clockInTime) + ' 〜 ' + App.formatTime(r.clockOutTime) + '</span>' : ''}
                 <span class="today-record-status ${r.status}">${r.status === 'working' ? '勤務中' : '完了'}</span>
@@ -4025,12 +4195,55 @@
       },
 
       settings: function() {
+        // 残業申請一覧
+        const myOvertimeRequests = (App.overtimeRequests || []).filter(r => r.employeeId === App.currentUser.id);
+        let overtimeListHtml = '';
+        if (myOvertimeRequests.length > 0) {
+          overtimeListHtml = '<div class="overtime-list">';
+          myOvertimeRequests.forEach(req => {
+            const statusText = req.status === 'pending' ? '申請中' : req.status === 'approved' ? '承認済' : '却下';
+            const statusClass = req.status === 'pending' ? 'pending' : req.status === 'approved' ? 'approved' : 'rejected';
+            overtimeListHtml += `
+              <div class="overtime-item ${statusClass}">
+                <span class="overtime-date">${req.workDate}</span>
+                <span class="overtime-hours">${req.hours}時間</span>
+                <span class="overtime-status ${statusClass}">${statusText}</span>
+              </div>
+            `;
+          });
+          overtimeListHtml += '</div>';
+        }
+        
         return `
           <div class="header">
             <button id="backBtn" class="back-btn">← 戻る</button>
             <span class="header-title">設定・各種届出</span>
           </div>
           <div class="list-content">
+            <div class="settings-section">
+              <h3 class="settings-section-title">残業申請</h3>
+              
+              <div class="settings-card">
+                <h4 class="settings-card-title">⏰ 残業申請</h4>
+                <p class="settings-card-desc">残業が発生した場合はこちらから申請してください</p>
+                <div class="settings-input-group">
+                  <input type="date" id="overtimeDateInput" class="settings-input" value="${new Date().toISOString().split('T')[0]}">
+                </div>
+                <div class="settings-input-group">
+                  <select id="overtimeHoursInput" class="settings-input">
+                    <option value="1">1時間</option>
+                    <option value="2">2時間</option>
+                    <option value="3">3時間</option>
+                    <option value="4">4時間</option>
+                    <option value="5">5時間</option>
+                  </select>
+                  <button id="submitOvertimeBtn" class="settings-save-btn">申請</button>
+                </div>
+                <p class="settings-card-note">※ 申請は管理者の承認後に反映されます</p>
+                ${myOvertimeRequests.length > 0 ? '<h4 style="margin-top: 16px; font-size: 14px;">申請履歴</h4>' + overtimeListHtml : ''}
+              </div>
+            </div>
+            
             <div class="settings-section">
               <h3 class="settings-section-title">アカウント設定</h3>
               
@@ -4199,7 +4412,7 @@
             
             dayRecords.forEach(r => {
               const isNight = r.shiftType === 'night';
-              const shiftIcon = isNight ? '🌙' : '☀️';
+              const shiftLabel = isNight ? '夜勤' : '日勤';
               // 正社員(worker)は時刻・実働時間を非表示
               const showTimes = App.currentUser.role === 'parttime' || App.currentUser.role === 'admin' || App.currentUser.role === 'subadmin';
               const timeStr = showTimes ? App.formatTime(r.clockInTime) + '〜' + (r.clockOutTime ? App.formatTime(r.clockOutTime) : '勤務中') : '';
@@ -4210,9 +4423,11 @@
                 const actualMinutes = Math.max(0, totalMinutes - breakMinutes);
                 hoursStr = `（実働 ${formatMinutes(actualMinutes)}）`;
               }
+              // 残業時間の表示
+              const overtimeStr = r.overtimeHours ? `【残業 ${r.overtimeHours}時間】` : '';
               statusHtml += `
                 <div class="day-record">
-                  <div class="day-site">${shiftIcon} ${r.jobSiteName}</div>
+                  <div class="day-site">${shiftLabel} / ${r.jobSiteName}${overtimeStr ? ' ' + overtimeStr : ''}</div>
                   ${showTimes ? '<div class="day-time">' + timeStr + hoursStr + '</div>' : ''}
                 </div>
               `;
@@ -4274,6 +4489,9 @@
 
         // 未処理の修正依頼数
         const pendingCorrections = App.corrections.filter(c => c.status === 'pending').length;
+        
+        // 未処理の残業申請数
+        const pendingOvertime = (App.overtimeRequests || []).filter(r => r.status === 'pending').length;
 
         // 今日の自分の勤怠（管理者も出退勤可能に）
         const myTodayRecords = App.records.filter(r => 
@@ -4354,6 +4572,10 @@
                 <button class="menu-card ${App.addressRequests.length > 0 ? 'has-alert' : ''}" data-view="addressRequestList">
                   <span class="menu-icon">🏠</span>
                   <span>住所変更届${App.addressRequests.length > 0 ? '（' + App.addressRequests.length + '件）' : ''}</span>
+                </button>
+                <button class="menu-card ${pendingOvertime > 0 ? 'has-alert' : ''}" data-view="overtimeRequestList">
+                  <span class="menu-icon">⏰</span>
+                  <span>残業申請${pendingOvertime > 0 ? '（' + pendingOvertime + '件）' : ''}</span>
                 </button>
                 <button class="menu-card" data-view="csvExport">
                   <span class="menu-icon">📊</span>
@@ -5419,6 +5641,85 @@
         `;
       },
 
+      overtimeRequestList: function() {
+        const requests = App.overtimeRequests || [];
+        let requestsHtml = '';
+        
+        if (requests.length === 0) {
+          requestsHtml = '<p class="empty-text">残業申請はありません</p>';
+        } else {
+          // 申請中を先に、承認済み・却下を後に
+          const sorted = [...requests].sort((a, b) => {
+            if (a.status === 'pending' && b.status !== 'pending') return -1;
+            if (a.status !== 'pending' && b.status === 'pending') return 1;
+            return new Date(b.createdAt) - new Date(a.createdAt);
+          });
+          
+          sorted.forEach(req => {
+            const statusText = req.status === 'pending' ? '申請中' : req.status === 'approved' ? '承認済み' : '却下';
+            const statusClass = req.status === 'pending' ? 'pending' : req.status === 'approved' ? 'approved' : 'rejected';
+            requestsHtml += `
+              <div class="overtime-request-card ${statusClass}">
+                <div class="overtime-request-header">
+                  <span class="overtime-request-employee">${req.employeeName}</span>
+                  <span class="overtime-request-status ${statusClass}">${statusText}</span>
+                </div>
+                <div class="overtime-request-detail">
+                  <span class="overtime-request-date">対象日: ${req.workDate}</span>
+                  <span class="overtime-request-hours">残業時間: ${req.hours}時間</span>
+                </div>
+                <p class="overtime-request-created">申請日: ${new Date(req.createdAt).toLocaleDateString('ja-JP')}</p>
+                ${req.status === 'pending' ? `
+                  <div class="overtime-request-actions">
+                    <button class="approve-overtime-btn" data-request="${req.id}">✓ 承認</button>
+                    <button class="reject-overtime-btn" data-request="${req.id}">✗ 却下</button>
+                  </div>
+                ` : `
+                  <div class="overtime-request-actions">
+                    <button class="delete-overtime-btn" data-request="${req.id}">🗑️ 削除</button>
+                  </div>
+                `}
+              </div>
+            `;
+          });
+        }
+        
+        // 管理者から残業を直接追加
+        let employeeOptions = '';
+        App.getVisibleEmployees(false).forEach(emp => {
+          employeeOptions += `<option value="${emp.id}">${emp.name}</option>`;
+        });
+
+        return `
+          <div class="header">
+            <button id="backBtn" class="back-btn">← 戻る</button>
+            <span class="header-title">残業申請管理</span>
+          </div>
+          <div class="list-content">
+            <div class="overtime-add-section">
+              <h3 class="form-title">⏰ 残業を直接追加</h3>
+              <div class="overtime-add-form">
+                <select id="overtimeEmployeeSelect" class="form-select">
+                  ${employeeOptions}
+                </select>
+                <input type="date" id="overtimeDateAdd" class="form-input" value="${new Date().toISOString().split('T')[0]}">
+                <select id="overtimeHoursAdd" class="form-select">
+                  <option value="1">1時間</option>
+                  <option value="2">2時間</option>
+                  <option value="3">3時間</option>
+                  <option value="4">4時間</option>
+                  <option value="5">5時間</option>
+                </select>
+                <button id="addOvertimeDirectBtn" class="form-btn">追加</button>
+              </div>
+            </div>
+            
+            <h3 class="form-title" style="margin-top: 24px;">📋 申請一覧</h3>
+            ${requestsHtml}
+          </div>
+        `;
+      },
+
       announcement: function() {
         const currentAnnouncement = App.announcement;
         
@@ -5964,6 +6265,35 @@
               App.save();
               alert('住所変更届を送信しました。管理者が確認します。');
               document.getElementById('newAddressInput').value = '';
+            });
+          }
+          
+          // 残業申請
+          const submitOvertimeBtn = document.getElementById('submitOvertimeBtn');
+          if (submitOvertimeBtn) {
+            submitOvertimeBtn.addEventListener('click', function() {
+              const workDate = document.getElementById('overtimeDateInput').value;
+              const hours = parseInt(document.getElementById('overtimeHoursInput').value);
+              
+              if (!workDate) {
+                alert('日付を選択してください');
+                return;
+              }
+              
+              if (!App.overtimeRequests) App.overtimeRequests = [];
+              
+              App.overtimeRequests.push({
+                id: Date.now().toString(),
+                employeeId: App.currentUser.id,
+                employeeName: App.currentUser.name,
+                workDate: workDate,
+                hours: hours,
+                status: 'pending',
+                createdAt: new Date().toISOString()
+              });
+              App.save();
+              alert('残業申請を送信しました。管理者が承認後に反映されます。');
+              Router.navigate('settings');
             });
           }
         }
@@ -7784,6 +8114,130 @@
               self.render('addressRequestList');
             });
           });
+        }
+        
+        // 残業申請管理
+        if (view === 'overtimeRequestList') {
+          // 承認
+          document.querySelectorAll('.approve-overtime-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const requestId = this.getAttribute('data-request');
+              const request = App.overtimeRequests.find(r => r.id === requestId);
+              
+              if (!request) return;
+              if (!confirm(`${request.employeeName}の残業申請（${request.workDate}、${request.hours}時間）を承認しますか？`)) return;
+              
+              // ステータスを承認に変更
+              request.status = 'approved';
+              request.approvedAt = new Date().toISOString();
+              
+              // 対象日のレコードに残業時間を反映
+              const targetRecord = App.records.find(r => 
+                r.employeeId === request.employeeId && 
+                r.workDate === request.workDate &&
+                r.status === 'completed'
+              );
+              if (targetRecord) {
+                targetRecord.overtimeHours = (targetRecord.overtimeHours || 0) + request.hours;
+              }
+              
+              App.save();
+              alert('承認しました。勤怠記録に残業時間が反映されました。');
+              self.render('overtimeRequestList');
+            });
+          });
+          
+          // 却下
+          document.querySelectorAll('.reject-overtime-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const requestId = this.getAttribute('data-request');
+              const request = App.overtimeRequests.find(r => r.id === requestId);
+              
+              if (!request) return;
+              if (!confirm(`${request.employeeName}の残業申請を却下しますか？`)) return;
+              
+              request.status = 'rejected';
+              request.rejectedAt = new Date().toISOString();
+              App.save();
+              alert('却下しました。');
+              self.render('overtimeRequestList');
+            });
+          });
+          
+          // 削除
+          document.querySelectorAll('.delete-overtime-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const requestId = this.getAttribute('data-request');
+              const request = App.overtimeRequests.find(r => r.id === requestId);
+              
+              if (!request) return;
+              if (!confirm('この残業申請を削除しますか？\n承認済みの場合、勤怠記録の残業時間も取り消されます。')) return;
+              
+              // 承認済みなら勤怠記録から残業時間を減らす
+              if (request.status === 'approved') {
+                const targetRecord = App.records.find(r => 
+                  r.employeeId === request.employeeId && 
+                  r.workDate === request.workDate &&
+                  r.status === 'completed'
+                );
+                if (targetRecord && targetRecord.overtimeHours) {
+                  targetRecord.overtimeHours = Math.max(0, targetRecord.overtimeHours - request.hours);
+                }
+              }
+              
+              App.overtimeRequests = App.overtimeRequests.filter(r => r.id !== requestId);
+              App.save();
+              alert('削除しました。');
+              self.render('overtimeRequestList');
+            });
+          });
+          
+          // 直接追加
+          const addOvertimeDirectBtn = document.getElementById('addOvertimeDirectBtn');
+          if (addOvertimeDirectBtn) {
+            addOvertimeDirectBtn.addEventListener('click', function() {
+              const employeeId = document.getElementById('overtimeEmployeeSelect').value;
+              const workDate = document.getElementById('overtimeDateAdd').value;
+              const hours = parseInt(document.getElementById('overtimeHoursAdd').value);
+              
+              if (!employeeId || !workDate) {
+                alert('従業員と日付を選択してください');
+                return;
+              }
+              
+              const employee = App.employees.find(e => e.id === employeeId);
+              if (!employee) return;
+              
+              // 対象日のレコードに直接残業時間を追加
+              const targetRecord = App.records.find(r => 
+                r.employeeId === employeeId && 
+                r.workDate === workDate &&
+                r.status === 'completed'
+              );
+              
+              if (targetRecord) {
+                targetRecord.overtimeHours = (targetRecord.overtimeHours || 0) + hours;
+              }
+              
+              // 申請記録も作成（承認済みとして）
+              if (!App.overtimeRequests) App.overtimeRequests = [];
+              App.overtimeRequests.push({
+                id: Date.now().toString(),
+                employeeId: employeeId,
+                employeeName: employee.name,
+                workDate: workDate,
+                hours: hours,
+                status: 'approved',
+                createdAt: new Date().toISOString(),
+                approvedAt: new Date().toISOString(),
+                addedByAdmin: true
+              });
+              
+              App.save();
+              alert(`${employee.name}の${workDate}に残業${hours}時間を追加しました。`);
+              self.render('overtimeRequestList');
+            });
+          }
         }
 
         // お知らせ送信
