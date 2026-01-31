@@ -3705,23 +3705,24 @@
           }
         }
         
+        // 正社員(worker)は時間表示なし、アルバイト・管理者・副管理者は表示
+        const showTimes = App.currentUser.role === 'parttime' || App.currentUser.role === 'admin' || App.currentUser.role === 'subadmin';
+        
         let statusHtml = '<p class="status-text">未始業</p>';
         if (isWorking) {
           statusHtml = `
             <p class="status-text">🟢 勤務中</p>
-            <p class="status-detail">始業: ${App.formatTime(workingRecord.clockInTime)}</p>
+            ${showTimes ? '<p class="status-detail">始業: ' + App.formatTime(workingRecord.clockInTime) + '</p>' : ''}
             <p class="status-detail">現場: ${workingRecord.jobSiteName}</p>
           `;
         } else if (completedRecords.length > 0) {
           const lastRecord = completedRecords[completedRecords.length - 1];
           const totalHours = completedRecords.reduce((sum, r) => sum + (r.workHours || 0), 0);
-          // 正社員(worker)は時間表示なし、アルバイト・管理者・副管理者は表示
-          const showHours = App.currentUser.role === 'parttime' || App.currentUser.role === 'admin' || App.currentUser.role === 'subadmin';
           statusHtml = `
             <p class="status-text">✅ 本日 ${completedRecords.length}回 勤務完了</p>
             <p class="status-otsukare">お疲れさまでした！</p>
-            ${showHours ? '<p class="status-detail">合計勤務時間: ' + totalHours.toFixed(1) + '時間</p>' : ''}
-            <p class="status-detail">最終: ${App.formatTime(lastRecord.clockInTime)} 〜 ${App.formatTime(lastRecord.clockOutTime)}</p>
+            ${showTimes ? '<p class="status-detail">合計勤務時間: ' + totalHours.toFixed(1) + '時間</p>' : ''}
+            ${showTimes ? '<p class="status-detail">最終: ' + App.formatTime(lastRecord.clockInTime) + ' 〜 ' + App.formatTime(lastRecord.clockOutTime) + '</p>' : ''}
             <p class="status-detail">現場: ${lastRecord.jobSiteName}</p>
           `;
         }
@@ -3735,7 +3736,7 @@
               <div class="today-record">
                 <span class="today-record-num">${index + 1}回目</span>
                 <span class="today-record-site">${r.jobSiteName}</span>
-                <span class="today-record-time">${App.formatTime(r.clockInTime)} 〜 ${App.formatTime(r.clockOutTime)}</span>
+                ${showTimes ? '<span class="today-record-time">' + App.formatTime(r.clockInTime) + ' 〜 ' + App.formatTime(r.clockOutTime) + '</span>' : ''}
                 <span class="today-record-status ${r.status}">${r.status === 'working' ? '勤務中' : '完了'}</span>
                 <button class="correction-btn" data-record="${r.id}">修正依頼</button>
               </div>
@@ -3977,6 +3978,9 @@
             <div id="clockOutMap" class="map-container"></div>
           `;
         }
+        
+        // 正社員(worker)は時刻表示なし
+        const showTimes = App.currentUser.role === 'parttime' || App.currentUser.role === 'admin' || App.currentUser.role === 'subadmin';
 
         return `
           <div class="header">
@@ -3992,6 +3996,7 @@
               <span class="info-label">現場</span>
               <span class="info-value">${record ? record.jobSiteName : ''}</span>
             </div>
+            ${showTimes ? `
             <div class="info-row">
               <span class="info-label">始業時刻</span>
               <span class="info-value">${record ? App.formatTime(record.clockInTime) : ''}</span>
@@ -4000,6 +4005,7 @@
               <span class="info-label">現在時刻</span>
               <span class="info-value">${new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
+            ` : ''}
             <div class="divider"></div>
             <p class="section-title">作業内容メモ（任意）</p>
             <textarea id="workMemo" class="form-textarea" placeholder="本日の作業内容を入力"></textarea>
@@ -4188,11 +4194,11 @@
             dayRecords.forEach(r => {
               const isNight = r.shiftType === 'night';
               const shiftIcon = isNight ? '🌙' : '☀️';
-              const timeStr = App.formatTime(r.clockInTime) + '〜' + (r.clockOutTime ? App.formatTime(r.clockOutTime) : '勤務中');
-              // 正社員(worker)は時間表示なし
-              const showHours = App.currentUser.role === 'parttime' || App.currentUser.role === 'admin' || App.currentUser.role === 'subadmin';
+              // 正社員(worker)は時刻・実働時間を非表示
+              const showTimes = App.currentUser.role === 'parttime' || App.currentUser.role === 'admin' || App.currentUser.role === 'subadmin';
+              const timeStr = showTimes ? App.formatTime(r.clockInTime) + '〜' + (r.clockOutTime ? App.formatTime(r.clockOutTime) : '勤務中') : '';
               let hoursStr = '';
-              if (showHours && r.workHours) {
+              if (showTimes && r.workHours) {
                 const totalMinutes = Math.round(r.workHours * 60);
                 const breakMinutes = getBreakMinutes(totalMinutes);
                 const actualMinutes = Math.max(0, totalMinutes - breakMinutes);
@@ -4201,7 +4207,7 @@
               statusHtml += `
                 <div class="day-record">
                   <div class="day-site">${shiftIcon} ${r.jobSiteName}</div>
-                  <div class="day-time">${timeStr}${hoursStr}</div>
+                  ${showTimes ? '<div class="day-time">' + timeStr + hoursStr + '</div>' : ''}
                 </div>
               `;
             });
