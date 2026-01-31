@@ -3432,11 +3432,34 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.6.2';
+    const APP_VERSION = 'v2.6.3';
     const APP_UPDATE_DATE = '2026/01/31';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
     }
+    
+    // バージョンチェック＆自動更新
+    (function checkVersion() {
+      const savedVersion = localStorage.getItem('kintai_app_version');
+      if (savedVersion && savedVersion !== APP_VERSION) {
+        // バージョンが変わった場合、キャッシュをクリアして更新
+        console.log('[更新] バージョン変更検出:', savedVersion, '→', APP_VERSION);
+        localStorage.setItem('kintai_app_version', APP_VERSION);
+        // Service Workerのキャッシュをクリア
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            names.forEach(function(name) {
+              caches.delete(name);
+            });
+          });
+        }
+        // 強制リロード（キャッシュをバイパス）
+        location.reload(true);
+      } else if (!savedVersion) {
+        // 初回起動
+        localStorage.setItem('kintai_app_version', APP_VERSION);
+      }
+    })();
 
     // アプリ状態
     const App = {
@@ -6331,6 +6354,37 @@
               App.save();
               alert('残業申請を送信しました。管理者が承認後に反映されます。');
               Router.navigate('overtimeRequest');
+            });
+          }
+        }
+        
+        // 残業申請画面（従業員用）
+        if (view === 'overtimeRequest') {
+          const submitOvertimeBtn = document.getElementById('submitOvertimeBtn');
+          if (submitOvertimeBtn) {
+            submitOvertimeBtn.addEventListener('click', function() {
+              const workDate = document.getElementById('overtimeDateInput').value;
+              const hours = parseInt(document.getElementById('overtimeHoursInput').value);
+              
+              if (!workDate) {
+                alert('日付を選択してください');
+                return;
+              }
+              
+              if (!App.overtimeRequests) App.overtimeRequests = [];
+              
+              App.overtimeRequests.push({
+                id: Date.now().toString(),
+                employeeId: App.currentUser.id,
+                employeeName: App.currentUser.name,
+                workDate: workDate,
+                hours: hours,
+                status: 'pending',
+                createdAt: new Date().toISOString()
+              });
+              App.save();
+              alert('残業申請を送信しました。管理者が承認後に反映されます。');
+              self.render('overtimeRequest');
             });
           }
         }
