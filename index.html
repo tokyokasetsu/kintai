@@ -469,6 +469,17 @@
       font-size: 15px;
       cursor: pointer;
     }
+    .overtime-request-btn {
+      width: 100%;
+      padding: 14px;
+      background-color: #f59e0b;
+      border: none;
+      border-radius: 12px;
+      color: #000;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
     .settings-section {
       margin-bottom: 24px;
     }
@@ -3421,7 +3432,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.6.0';
+    const APP_VERSION = 'v2.6.1';
     const APP_UPDATE_DATE = '2026/01/31';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -4071,6 +4082,7 @@
             ${todayHistoryHtml}
             <div class="home-buttons">
               <button id="historyBtn" class="history-btn">📋 勤怠履歴を見る</button>
+              <button id="overtimeRequestBtn" class="overtime-request-btn">⏰ 残業申請</button>
               <button id="settingsBtn" class="settings-btn">⚙️ 設定・各種届出</button>
             </div>
           </div>
@@ -4194,13 +4206,15 @@
         `;
       },
 
-      settings: function() {
-        // 残業申請一覧
+      // 残業申請画面（従業員用）
+      overtimeRequest: function() {
         const myOvertimeRequests = (App.overtimeRequests || []).filter(r => r.employeeId === App.currentUser.id);
         let overtimeListHtml = '';
         if (myOvertimeRequests.length > 0) {
+          // 新しい順にソート
+          const sorted = [...myOvertimeRequests].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
           overtimeListHtml = '<div class="overtime-list">';
-          myOvertimeRequests.forEach(req => {
+          sorted.forEach(req => {
             const statusText = req.status === 'pending' ? '申請中' : req.status === 'approved' ? '承認済' : '却下';
             const statusClass = req.status === 'pending' ? 'pending' : req.status === 'approved' ? 'approved' : 'rejected';
             overtimeListHtml += `
@@ -4217,19 +4231,19 @@
         return `
           <div class="header">
             <button id="backBtn" class="back-btn">← 戻る</button>
-            <span class="header-title">設定・各種届出</span>
+            <span class="header-title">残業申請</span>
           </div>
           <div class="list-content">
             <div class="settings-section">
-              <h3 class="settings-section-title">残業申請</h3>
-              
               <div class="settings-card">
-                <h4 class="settings-card-title">⏰ 残業申請</h4>
-                <p class="settings-card-desc">残業が発生した場合はこちらから申請してください</p>
+                <h4 class="settings-card-title">⏰ 新規残業申請</h4>
+                <p class="settings-card-desc">残業が発生した場合はこちらから申請してください（1時間単位）</p>
                 <div class="settings-input-group">
+                  <label style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">対象日</label>
                   <input type="date" id="overtimeDateInput" class="settings-input" value="${new Date().toISOString().split('T')[0]}">
                 </div>
                 <div class="settings-input-group">
+                  <label style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">残業時間</label>
                   <select id="overtimeHoursInput" class="settings-input">
                     <option value="1">1時間</option>
                     <option value="2">2時間</option>
@@ -4237,13 +4251,27 @@
                     <option value="4">4時間</option>
                     <option value="5">5時間</option>
                   </select>
-                  <button id="submitOvertimeBtn" class="settings-save-btn">申請</button>
                 </div>
-                <p class="settings-card-note">※ 申請は管理者の承認後に反映されます</p>
-                ${myOvertimeRequests.length > 0 ? '<h4 style="margin-top: 16px; font-size: 14px;">申請履歴</h4>' + overtimeListHtml : ''}
+                <button id="submitOvertimeBtn" class="settings-save-btn" style="width: 100%; margin-top: 12px;">申請する</button>
+                <p class="settings-card-note">※ 申請は管理者の承認後に勤怠記録に反映されます</p>
               </div>
             </div>
             
+            <div class="settings-section">
+              <h3 class="settings-section-title">申請履歴</h3>
+              ${myOvertimeRequests.length > 0 ? overtimeListHtml : '<p class="empty-text">まだ申請履歴がありません</p>'}
+            </div>
+          </div>
+        `;
+      },
+      
+      settings: function() {
+        return `
+          <div class="header">
+            <button id="backBtn" class="back-btn">← 戻る</button>
+            <span class="header-title">設定・各種届出</span>
+          </div>
+          <div class="list-content">
             <div class="settings-section">
               <h3 class="settings-section-title">アカウント設定</h3>
               
@@ -6152,6 +6180,14 @@
               self.render('settings');
             });
           }
+          
+          // 残業申請ボタン
+          const overtimeRequestBtn = document.getElementById('overtimeRequestBtn');
+          if (overtimeRequestBtn) {
+            overtimeRequestBtn.addEventListener('click', function() {
+              self.render('overtimeRequest');
+            });
+          }
 
           // 修正依頼ボタン
           document.querySelectorAll('.correction-btn').forEach(function(btn) {
@@ -6293,7 +6329,7 @@
               });
               App.save();
               alert('残業申請を送信しました。管理者が承認後に反映されます。');
-              Router.navigate('settings');
+              Router.navigate('overtimeRequest');
             });
           }
         }
