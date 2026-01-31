@@ -3253,7 +3253,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.4.2';
+    const APP_VERSION = 'v2.5.0';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -3710,17 +3710,21 @@
         
         let statusHtml = '<p class="status-text">未始業</p>';
         if (isWorking) {
+          const shiftIcon = workingRecord.shiftType === 'night' ? '🌙 夜勤' : '☀️ 日勤';
           statusHtml = `
             <p class="status-text">🟢 勤務中</p>
+            ${!showTimes ? '<p class="status-detail">' + shiftIcon + '</p>' : ''}
             ${showTimes ? '<p class="status-detail">始業: ' + App.formatTime(workingRecord.clockInTime) + '</p>' : ''}
             <p class="status-detail">現場: ${workingRecord.jobSiteName}</p>
           `;
         } else if (completedRecords.length > 0) {
           const lastRecord = completedRecords[completedRecords.length - 1];
           const totalHours = completedRecords.reduce((sum, r) => sum + (r.workHours || 0), 0);
+          const lastShiftIcon = lastRecord.shiftType === 'night' ? '🌙 夜勤' : '☀️ 日勤';
           statusHtml = `
             <p class="status-text">✅ 本日 ${completedRecords.length}回 勤務完了</p>
             <p class="status-otsukare">お疲れさまでした！</p>
+            ${!showTimes ? '<p class="status-detail">' + lastShiftIcon + '</p>' : ''}
             ${showTimes ? '<p class="status-detail">合計勤務時間: ' + totalHours.toFixed(1) + '時間</p>' : ''}
             ${showTimes ? '<p class="status-detail">最終: ' + App.formatTime(lastRecord.clockInTime) + ' 〜 ' + App.formatTime(lastRecord.clockOutTime) + '</p>' : ''}
             <p class="status-detail">現場: ${lastRecord.jobSiteName}</p>
@@ -3732,9 +3736,11 @@
         if (todayRecords.length > 0) {
           todayHistoryHtml = '<div class="today-history"><p class="section-title">本日の勤怠</p>';
           todayRecords.forEach((r, index) => {
+            const shiftIcon = r.shiftType === 'night' ? '🌙' : '☀️';
             todayHistoryHtml += `
               <div class="today-record">
                 <span class="today-record-num">${index + 1}回目</span>
+                ${!showTimes ? '<span class="today-record-shift">' + shiftIcon + '</span>' : ''}
                 <span class="today-record-site">${r.jobSiteName}</span>
                 ${showTimes ? '<span class="today-record-time">' + App.formatTime(r.clockInTime) + ' 〜 ' + App.formatTime(r.clockOutTime) + '</span>' : ''}
                 <span class="today-record-status ${r.status}">${r.status === 'working' ? '勤務中' : '完了'}</span>
