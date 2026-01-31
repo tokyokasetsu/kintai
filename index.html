@@ -3432,7 +3432,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.6.1';
+    const APP_VERSION = 'v2.6.2';
     const APP_UPDATE_DATE = '2026/01/31';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -5317,10 +5317,11 @@
                 const actualMinutes = Math.max(0, totalMinutes - breakMinutes);
                 hoursStr = `（実働 ${formatMinutes(actualMinutes)}）`;
               }
+              const overtimeStr = r.overtimeHours ? `<span style="color: #f59e0b; font-weight: 600;">【残業 ${r.overtimeHours}h】</span>` : '';
               statusHtml += `
                 <div class="day-record emp-hist-record" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px;">
                   <div style="flex: 1;">
-                    <div class="day-site">${shiftIcon} ${r.jobSiteName}</div>
+                    <div class="day-site">${shiftIcon} ${r.jobSiteName} ${overtimeStr}</div>
                     <div class="day-time">${timeStr}${hoursStr}</div>
                   </div>
                   <button class="edit-record-btn" data-record-id="${r.id}" style="padding: 6px 12px; background: #3b82f6; color: #fff; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; white-space: nowrap;">編集</button>
@@ -6532,14 +6533,19 @@
                 return;
               }
               
+              // 現在の残業時間
+              const currentOvertime = record.overtimeHours || 0;
+              
               // 操作選択
               const action = prompt(
                 `【${record.employeeName}】${record.workDate}\n` +
-                `現場: ${record.jobSiteName}\n\n` +
+                `現場: ${record.jobSiteName}\n` +
+                `残業: ${currentOvertime}時間\n\n` +
                 `操作を選択してください:\n` +
                 `1: 時刻を編集\n` +
                 `2: 現場名を変更\n` +
-                `3: この記録を削除\n\n` +
+                `3: 残業時間を編集\n` +
+                `4: この記録を削除\n\n` +
                 `番号を入力:`, '1'
               );
               
@@ -6619,6 +6625,27 @@
                 }
                 
               } else if (action === '3') {
+                // 残業時間編集
+                const currentOT = record.overtimeHours || 0;
+                const newOT = prompt(
+                  `現在の残業時間: ${currentOT}時間\n\n` +
+                  `新しい残業時間を入力してください（0〜10時間）:`,
+                  currentOT.toString()
+                );
+                
+                if (newOT === null) return;
+                
+                const otHours = parseInt(newOT);
+                if (isNaN(otHours) || otHours < 0 || otHours > 10) {
+                  alert('0〜10の数値を入力してください');
+                  return;
+                }
+                
+                record.overtimeHours = otHours;
+                App.save();
+                alert(`残業時間を${otHours}時間に更新しました`);
+                
+              } else if (action === '4') {
                 // 削除
                 if (confirm(`本当にこの記録を削除しますか？\n\n${record.workDate} ${record.jobSiteName}`)) {
                   const idx = App.records.findIndex(r => r.id === recordId);
@@ -7473,6 +7500,7 @@
               const hasGps = record.clockInLat && record.clockInLng;
               const shiftLabel = record.shiftType === 'night' ? '🌙 夜勤' : '☀️ 日勤';
               const statusLabel = record.status === 'completed' ? '終業' : '勤務中';
+              const overtimeHours = record.overtimeHours || 0;
               
               const detailHtml = `
                 <h3 class="attendance-detail-name">${record.employeeName}</h3>
@@ -7502,6 +7530,10 @@
                   <span class="attendance-detail-value">${record.workHours.toFixed(1)}時間</span>
                 </div>
                 ` : ''}
+                <div class="attendance-detail-row">
+                  <span class="attendance-detail-label">残業</span>
+                  <span class="attendance-detail-value" style="color: ${overtimeHours > 0 ? '#f59e0b' : '#64748b'}">${overtimeHours}時間</span>
+                </div>
                 <button class="attendance-detail-map-btn" id="showMapFromDetail" 
                   data-lat="${record.clockInLat || ''}" 
                   data-lng="${record.clockInLng || ''}"
@@ -7512,6 +7544,9 @@
                   📍 ${hasGps ? '打刻場所を地図で見る' : '位置情報なし'}
                 </button>
                 ${(App.currentUser.role === 'admin' || App.currentUser.role === 'subadmin') ? `
+                <button class="attendance-detail-edit-btn" id="editOvertimeBtn" data-record-id="${record.id}" style="width: 100%; padding: 12px; margin-top: 8px; background: #f59e0b; border: none; border-radius: 8px; color: #000; font-weight: 600; cursor: pointer;">
+                  ⏰ 残業時間を編集
+                </button>
                 <button class="attendance-detail-delete-btn" id="deleteRecordBtn" data-record-id="${record.id}">
                   🗑️ この記録を削除
                 </button>
@@ -7520,6 +7555,38 @@
               
               document.getElementById('attendanceDetailBody').innerHTML = detailHtml;
               document.getElementById('attendanceDetailModal').classList.remove('hidden');
+              
+              // 残業時間編集ボタン
+              const editOvertimeBtn = document.getElementById('editOvertimeBtn');
+              if (editOvertimeBtn) {
+                editOvertimeBtn.addEventListener('click', function() {
+                  const recId = this.getAttribute('data-record-id');
+                  const rec = App.records.find(r => r.id === recId);
+                  if (!rec) return;
+                  
+                  const currentOT = rec.overtimeHours || 0;
+                  const newOT = prompt(
+                    `【${rec.employeeName}】${rec.workDate}\n` +
+                    `現在の残業時間: ${currentOT}時間\n\n` +
+                    `新しい残業時間を入力してください（0〜10時間）:`,
+                    currentOT.toString()
+                  );
+                  
+                  if (newOT === null) return;
+                  
+                  const otHours = parseInt(newOT);
+                  if (isNaN(otHours) || otHours < 0 || otHours > 10) {
+                    alert('0〜10の数値を入力してください');
+                    return;
+                  }
+                  
+                  rec.overtimeHours = otHours;
+                  App.save();
+                  document.getElementById('attendanceDetailModal').classList.add('hidden');
+                  alert(`残業時間を${otHours}時間に更新しました`);
+                  self.render('dailyList');
+                });
+              }
 
               // 削除ボタン
               const deleteBtn = document.getElementById('deleteRecordBtn');
