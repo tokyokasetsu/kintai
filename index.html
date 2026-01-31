@@ -3253,7 +3253,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.4.1';
+    const APP_VERSION = 'v2.4.2';
     const APP_UPDATE_DATE = '2026/01/29';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -3715,10 +3715,12 @@
         } else if (completedRecords.length > 0) {
           const lastRecord = completedRecords[completedRecords.length - 1];
           const totalHours = completedRecords.reduce((sum, r) => sum + (r.workHours || 0), 0);
+          // 正社員(worker)は時間表示なし、アルバイト・管理者・副管理者は表示
+          const showHours = App.currentUser.role === 'parttime' || App.currentUser.role === 'admin' || App.currentUser.role === 'subadmin';
           statusHtml = `
             <p class="status-text">✅ 本日 ${completedRecords.length}回 勤務完了</p>
             <p class="status-otsukare">お疲れさまでした！</p>
-            <p class="status-detail">合計勤務時間: ${totalHours.toFixed(1)}時間</p>
+            ${showHours ? '<p class="status-detail">合計勤務時間: ' + totalHours.toFixed(1) + '時間</p>' : ''}
             <p class="status-detail">最終: ${App.formatTime(lastRecord.clockInTime)} 〜 ${App.formatTime(lastRecord.clockOutTime)}</p>
             <p class="status-detail">現場: ${lastRecord.jobSiteName}</p>
           `;
@@ -4187,8 +4189,10 @@
               const isNight = r.shiftType === 'night';
               const shiftIcon = isNight ? '🌙' : '☀️';
               const timeStr = App.formatTime(r.clockInTime) + '〜' + (r.clockOutTime ? App.formatTime(r.clockOutTime) : '勤務中');
+              // 正社員(worker)は時間表示なし
+              const showHours = App.currentUser.role === 'parttime' || App.currentUser.role === 'admin' || App.currentUser.role === 'subadmin';
               let hoursStr = '';
-              if (r.workHours) {
+              if (showHours && r.workHours) {
                 const totalMinutes = Math.round(r.workHours * 60);
                 const breakMinutes = getBreakMinutes(totalMinutes);
                 const actualMinutes = Math.max(0, totalMinutes - breakMinutes);
