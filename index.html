@@ -3371,8 +3371,8 @@
           // 復元前に現在のデータをバックアップ
           await this.createBackup();
           
-          // 【重要】当日のデータを保持
-          const today = new Date().toISOString().slice(0, 10);
+          // 【重要】当日のデータを保持（日本時間）
+          const today = App.getToday();
           const todayRecords = App.records.filter(r => r.workDate === today);
           console.log('[復元] 当日の記録を保持:', todayRecords.length, '件');
           
@@ -3421,7 +3421,7 @@
       // 自動バックアップ（1日1回）
       startAutoBackup: function() {
         const lastBackup = localStorage.getItem('lastAutoBackup');
-        const today = new Date().toISOString().slice(0, 10);
+        const today = App.getToday();
         
         // 今日まだバックアップしていなければ実行
         if (lastBackup !== today && App.records.length > 0) {
@@ -3436,7 +3436,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.7.6';
+    const APP_VERSION = 'v2.7.7';
     const APP_UPDATE_DATE = '2026/02/03';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -3514,8 +3514,16 @@
       // 管理者からのお知らせ
       announcement: Storage.get('announcement', null),
       gpsLocation: null,
-      selectedDate: new Date().toISOString().split('T')[0],
-      selectedSiteDate: new Date().toISOString().split('T')[0],
+      selectedDate: (function() {
+        const now = new Date();
+        const jst = new Date(now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000);
+        return jst.getFullYear() + '-' + String(jst.getMonth() + 1).padStart(2, '0') + '-' + String(jst.getDate()).padStart(2, '0');
+      })(),
+      selectedSiteDate: (function() {
+        const now = new Date();
+        const jst = new Date(now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000);
+        return jst.getFullYear() + '-' + String(jst.getMonth() + 1).padStart(2, '0') + '-' + String(jst.getDate()).padStart(2, '0');
+      })(),
       historyMonth: null,
 
       save: function() {
@@ -4297,7 +4305,7 @@
                 <p class="settings-card-desc">残業が発生した場合はこちらから申請してください（1時間単位）</p>
                 <div class="settings-input-group">
                   <label style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">対象日</label>
-                  <input type="date" id="overtimeDateInput" class="settings-input" value="${new Date().toISOString().split('T')[0]}">
+                  <input type="date" id="overtimeDateInput" class="settings-input" value="${App.getToday()}">
                 </div>
                 <div class="settings-input-group">
                   <label style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">残業時間</label>
@@ -5788,7 +5796,7 @@
                 <select id="overtimeEmployeeSelect" class="form-select">
                   ${employeeOptions}
                 </select>
-                <input type="date" id="overtimeDateAdd" class="form-input" value="${new Date().toISOString().split('T')[0]}">
+                <input type="date" id="overtimeDateAdd" class="form-input" value="${App.getToday()}">
                 <select id="overtimeHoursAdd" class="form-select">
                   <option value="1">1時間</option>
                   <option value="2">2時間</option>
@@ -8481,7 +8489,7 @@
               const blob = new Blob([json], { type: 'application/json' });
               const url = URL.createObjectURL(blob);
               
-              const today = new Date().toISOString().split('T')[0];
+              const today = App.getToday();
               const a = document.createElement('a');
               a.href = url;
               a.download = 'kintai_backup_' + today + '.json';
@@ -8901,13 +8909,16 @@
         // 自動バックアップ開始（1日1回）
         FirebaseSync.startAutoBackup();
         
-        // 日付変更検知（1分ごとにチェック）
-        let lastDate = new Date().toISOString().split('T')[0];
+        // 日付変更検知（1分ごとにチェック）- 日本時間
+        let lastDate = App.getToday();
         setInterval(function() {
-          const currentDate = new Date().toISOString().split('T')[0];
+          const currentDate = App.getToday();
           if (currentDate !== lastDate) {
             console.log('[日付変更] ' + lastDate + ' → ' + currentDate);
             lastDate = currentDate;
+            // selectedDateも更新
+            App.selectedDate = currentDate;
+            App.selectedSiteDate = currentDate;
             // 現在の画面を再描画
             if (App.currentUser && App.currentView) {
               Views.render(App.currentView);
