@@ -3432,7 +3432,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.7.1';
+    const APP_VERSION = 'v2.7.2';
     const APP_UPDATE_DATE = '2026/01/31';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -8874,6 +8874,20 @@
         
         // 自動バックアップ開始（1日1回）
         FirebaseSync.startAutoBackup();
+        
+        // 日付変更検知（1分ごとにチェック）
+        let lastDate = new Date().toISOString().split('T')[0];
+        setInterval(function() {
+          const currentDate = new Date().toISOString().split('T')[0];
+          if (currentDate !== lastDate) {
+            console.log('[日付変更] ' + lastDate + ' → ' + currentDate);
+            lastDate = currentDate;
+            // 現在の画面を再描画
+            if (App.currentUser && App.currentView) {
+              Views.render(App.currentView);
+            }
+          }
+        }, 60000); // 1分ごと
         
         Views.render('login');
       } catch (error) {
