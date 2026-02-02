@@ -3436,32 +3436,45 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.7.3';
+    const APP_VERSION = 'v2.7.4';
     const APP_UPDATE_DATE = '2026/02/03';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
     }
     
-    // バージョンチェック＆自動更新
-    (function checkVersion() {
-      const savedVersion = localStorage.getItem('kintai_app_version');
-      if (savedVersion && savedVersion !== APP_VERSION) {
-        // バージョンが変わった場合、キャッシュをクリアして更新
-        console.log('[更新] バージョン変更検出:', savedVersion, '→', APP_VERSION);
-        localStorage.setItem('kintai_app_version', APP_VERSION);
-        // Service Workerのキャッシュをクリア
-        if ('caches' in window) {
-          caches.keys().then(function(names) {
-            names.forEach(function(name) {
-              caches.delete(name);
-            });
-          });
+    // 【重要】Firebaseから最新バージョンをチェックして強制更新
+    (async function checkLatestVersion() {
+      try {
+        // Firebaseの初期化を待つ
+        const db = firebase.firestore();
+        const versionDoc = await db.collection('appConfig').doc('version').get();
+        
+        if (versionDoc.exists) {
+          const latestVersion = versionDoc.data().current;
+          const savedVersion = localStorage.getItem('kintai_app_version');
+          
+          console.log('[バージョン] 現在:', APP_VERSION, '/ Firebase:', latestVersion, '/ 保存:', savedVersion);
+          
+          // Firebaseのバージョンと現在のバージョンが違う場合、強制リロード
+          if (latestVersion && APP_VERSION !== latestVersion) {
+            console.log('[更新] 新しいバージョンが利用可能:', latestVersion);
+            // キャッシュをクリア
+            if ('caches' in window) {
+              const names = await caches.keys();
+              await Promise.all(names.map(name => caches.delete(name)));
+            }
+            // URLにタイムスタンプを付けて強制リロード
+            const timestamp = new Date().getTime();
+            const currentUrl = window.location.href.split('?')[0];
+            window.location.href = currentUrl + '?t=' + timestamp;
+            return;
+          }
         }
-        // 強制リロード（キャッシュをバイパス）
-        location.reload(true);
-      } else if (!savedVersion) {
-        // 初回起動
+        
+        // バージョンを保存
         localStorage.setItem('kintai_app_version', APP_VERSION);
+      } catch (e) {
+        console.log('[バージョンチェック] オフラインまたはエラー:', e.message);
       }
     })();
 
