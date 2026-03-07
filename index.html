@@ -3562,7 +3562,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.8.1';
+    const APP_VERSION = 'v2.8.2';
     const APP_UPDATE_DATE = '2026/03/07';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -3849,6 +3849,32 @@
         );
       },
 
+      // 過去の未退勤記録を取得（昨日の「勤務中」のみ - 過去の積み重ねは無視）
+      getPastWorkingRecord: function() {
+        if (!this.currentUser) return null;
+        const today = this.getToday();
+        // 昨日の日付を計算
+        const todayDate = new Date(today + 'T00:00:00');
+        todayDate.setDate(todayDate.getDate() - 1);
+        const yesterday = todayDate.toISOString().split('T')[0];
+        // 昨日の未退勤のみを返す（それより過去は無視）
+        return this.records.find(r => 
+          r.employeeId === this.currentUser.id && 
+          r.workDate === yesterday && 
+          r.status === 'working'
+        );
+      },
+
+      // 勤務中の記録を取得（今日または過去、退勤処理用）
+      getWorkingRecord: function() {
+        if (!this.currentUser) return null;
+        // まず今日の勤務中を探す
+        const todayRecord = this.getTodayRecord();
+        if (todayRecord) return todayRecord;
+        // なければ過去の未退勤を探す
+        return this.getPastWorkingRecord();
+      },
+
       getTodayRecords: function() {
         if (!this.currentUser) return [];
         // 今日の全記録を取得
@@ -4049,9 +4075,11 @@
 
       home: function() {
         const workingRecord = App.getTodayRecord();
+        const pastWorkingRecord = App.getPastWorkingRecord();
         const todayRecords = App.getTodayRecords();
         const completedRecords = todayRecords.filter(r => r.status === 'completed');
         const isWorking = !!workingRecord;
+        const hasPastWorking = !!pastWorkingRecord;
         
         // 今日の日付（曜日付き）- 日本時間で取得
         const now = new Date();
@@ -4074,6 +4102,17 @@
           } else if (daysUntil === 0) {
             paidLeaveHtml = `<div class="paid-leave-info today">🎉 本日は有給付与日です！</div>`;
           }
+        }
+        
+        // 過去の未退勤警告
+        let pastWorkingWarningHtml = '';
+        if (hasPastWorking) {
+          pastWorkingWarningHtml = `
+            <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+              <p style="color: #92400e; font-weight: 600; margin: 0 0 8px 0;">⚠️ ${pastWorkingRecord.workDate} の退勤処理が未完了です</p>
+              <p style="color: #92400e; font-size: 13px; margin: 0;">退勤ボタンを押して処理してください</p>
+            </div>
+          `;
         }
         
         // 正社員(worker)は時間表示なし、アルバイト・管理者・副管理者は表示
@@ -4254,15 +4293,16 @@
             </div>
             <div id="clock" class="clock-display"></div>
             <div class="button-container">
-              <button id="clockInBtn" class="main-btn clock-in-btn" ${isWorking ? 'disabled' : ''}>
+              <button id="clockInBtn" class="main-btn clock-in-btn" ${isWorking || hasPastWorking ? 'disabled' : ''}>
                 <span class="btn-icon">🌅</span>
                 <span>出 勤</span>
               </button>
-              <button id="clockOutBtn" class="main-btn clock-out-btn" ${!isWorking ? 'disabled' : ''}>
+              <button id="clockOutBtn" class="main-btn clock-out-btn" ${!isWorking && !hasPastWorking ? 'disabled' : ''}>
                 <span class="btn-icon">🌆</span>
                 <span>退 勤</span>
               </button>
             </div>
+            ${pastWorkingWarningHtml}
             <p class="gps-notice">📍 位置情報は打刻時のみ取得・記録されます</p>
             <div class="status-card">
               <h3 class="status-title">本日の状態</h3>
@@ -4345,7 +4385,8 @@
       },
 
       clockOut: function() {
-        const record = App.getTodayRecord();
+        const record = App.getWorkingRecord();
+        const isPastRecord = record && record.workDate < App.getToday();
         let gpsHtml = '<p class="gps-loading">位置情報を取得中...</p>';
         if (App.gpsLocation) {
           gpsHtml = `
@@ -4359,6 +4400,23 @@
         
         // 正社員(worker)は時刻表示なし
         const showTimes = App.currentUser.role === 'parttime' || App.currentUser.role === 'admin' || App.currentUser.role === 'subadmin';
+        
+        // 過去の未退勤の警告メッセージ
+        let warningHtml = '';
+        if (isPastRecord && record.shiftType === 'day') {
+          warningHtml = `
+            <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+              <p style="color: #92400e; font-weight: 600; margin: 0;">⚠️ ${record.workDate} の退勤処理です</p>
+              <p style="color: #92400e; font-size: 12px; margin: 8px 0 0 0;">日勤のため、17:00で退勤として記録されます</p>
+            </div>
+          `;
+        } else if (isPastRecord) {
+          warningHtml = `
+            <div style="background: #dbeafe; border: 1px solid #3b82f6; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+              <p style="color: #1e40af; font-weight: 600; margin: 0;">ℹ️ ${record.workDate} の退勤処理です</p>
+            </div>
+          `;
+        }
 
         return `
           <div class="header">
@@ -4366,9 +4424,14 @@
             <span class="header-title">終業打刻</span>
           </div>
           <div class="form-content">
+            ${warningHtml}
             <div class="info-row">
               <span class="info-label">従業員</span>
               <span class="info-value">${App.currentUser.name}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">出勤日</span>
+              <span class="info-value">${record ? record.workDate : ''}</span>
             </div>
             <div class="info-row">
               <span class="info-label">現場</span>
@@ -6385,6 +6448,12 @@
           if (clockInBtn) {
             clockInBtn.addEventListener('click', function() {
               if (!this.disabled) {
+                // 過去の未退勤記録をチェック
+                const pastWorking = App.getPastWorkingRecord();
+                if (pastWorking) {
+                  alert(`⚠️ ${pastWorking.workDate} の退勤処理が完了していません。\n\n先に退勤処理を行ってください。`);
+                  return;
+                }
                 App.getGPS(function() { self.render('clockIn'); });
               }
             });
@@ -7325,11 +7394,24 @@
 
           if (confirmBtn) {
             confirmBtn.addEventListener('click', function() {
-              const record = App.getTodayRecord();
+              const record = App.getWorkingRecord();
               if (!record) return;
 
-              const clockOutTime = new Date();
+              const today = App.getToday();
+              const isPastRecord = record.workDate < today;
               const clockInTime = new Date(record.clockInTime);
+              let clockOutTime;
+              
+              // 日勤で日付をまたいでいる場合は17:00に強制
+              if (isPastRecord && record.shiftType === 'day') {
+                // 出勤日の17:00で退勤
+                clockOutTime = new Date(record.workDate + 'T17:00:00');
+                console.log('[退勤] 日勤の日付またぎ → ' + record.workDate + ' 17:00 で処理');
+              } else {
+                // 通常の退勤（現在時刻）
+                clockOutTime = new Date();
+              }
+              
               const workHours = (clockOutTime - clockInTime) / (1000 * 60 * 60);
 
               record.clockOutTime = clockOutTime.toISOString();
@@ -7346,7 +7428,13 @@
               }
 
               App.save();
-              alert('終業を記録しました！お疲れさまでした！');
+              
+              if (isPastRecord && record.shiftType === 'day') {
+                alert(`${record.workDate} の終業を17:00で記録しました。\nお疲れさまでした！`);
+              } else {
+                alert('終業を記録しました！お疲れさまでした！');
+              }
+              
               // 役割に応じた画面に戻る
               if (App.currentUser.role === 'admin') {
                 self.render('admin');
