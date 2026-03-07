@@ -3562,7 +3562,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.8.0';
+    const APP_VERSION = 'v2.8.1';
     const APP_UPDATE_DATE = '2026/03/07';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -4641,11 +4641,9 @@
                 const actualMinutes = Math.max(0, totalMinutes - breakMinutes);
                 hoursStr = `（実働 ${formatMinutes(actualMinutes)}）`;
               }
-              // 残業時間の表示
-              const overtimeStr = r.overtimeHours ? `【残業 ${r.overtimeHours}時間】` : '';
               statusHtml += `
                 <div class="day-record">
-                  <div class="day-site">${shiftLabel} / ${r.jobSiteName}${overtimeStr ? ' ' + overtimeStr : ''}</div>
+                  <div class="day-site">${shiftLabel} / ${r.jobSiteName}</div>
                   ${showTimes ? '<div class="day-time">' + timeStr + hoursStr + '</div>' : ''}
                 </div>
               `;
