@@ -2403,11 +2403,25 @@
       border-radius: 8px;
       padding: 10px 12px;
       margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
     }
     .home-announcement-text {
       font-size: 12px;
       color: #ef4444;
-      white-space: pre-wrap;
+      flex: 1;
+    }
+    .view-announcement-btn {
+      background: #ef4444;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 11px;
+      cursor: pointer;
+      white-space: nowrap;
     }
     .site-delete-list {
       max-height: 300px;
@@ -3562,7 +3576,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.8.2';
+    const APP_VERSION = 'v2.8.3';
     const APP_UPDATE_DATE = '2026/03/07';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -4285,7 +4299,7 @@
             ${calendarHtml}
           </div>
           <div class="home-content">
-            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.message}</p></div>` : ''}
+            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.message.split('\\n')[0]}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
             ${paidLeaveHtml}
             <div class="greeting">
               <p class="greeting-text">${App.getGreeting()}</p>
@@ -6054,7 +6068,8 @@
               <p class="announcement-desc">入力した内容が全従業員のホーム画面に表示されます。</p>
               
               <div class="announcement-form">
-                <textarea id="announcementText" class="announcement-input" placeholder="お知らせ内容を入力&#10;例：1/15（水）22:00〜24:00 システムメンテナンスのためご利用いただけません">${currentAnnouncement ? currentAnnouncement.message : ''}</textarea>
+                <input type="text" id="announcementTitle" class="announcement-input" style="margin-bottom: 12px;" placeholder="タイトル（ホーム画面に表示されます）" value="${currentAnnouncement ? currentAnnouncement.title || '' : ''}">
+                <textarea id="announcementText" class="announcement-input" style="min-height: 120px;" placeholder="本文（詳細ページに表示されます）">${currentAnnouncement ? currentAnnouncement.message : ''}</textarea>
                 <button id="sendAnnouncementBtn" class="announcement-btn send">📤 お知らせを送信</button>
               </div>
             </div>
@@ -6063,7 +6078,8 @@
               <div class="announcement-section current">
                 <h3 class="form-title">📌 現在配信中のお知らせ</h3>
                 <div class="current-announcement">
-                  <p class="current-announcement-text">${currentAnnouncement.message}</p>
+                  <p class="current-announcement-text" style="font-weight: 600; margin-bottom: 8px;">📢 ${currentAnnouncement.title || 'お知らせ'}</p>
+                  <p class="current-announcement-text" style="white-space: pre-wrap;">${currentAnnouncement.message}</p>
                   <p class="current-announcement-date">送信日時: ${new Date(currentAnnouncement.createdAt).toLocaleString('ja-JP')}</p>
                 </div>
                 <button id="cancelAnnouncementBtn" class="announcement-btn cancel">🗑️ お知らせを取り消す</button>
@@ -6269,6 +6285,45 @@
         `;
       },
 
+      // お知らせ詳細画面
+      announcementDetail: function() {
+        const announcement = App.announcement;
+        if (!announcement) {
+          return `
+            <div class="header">
+              <button id="backBtn" class="back-btn">← 戻る</button>
+              <span class="header-title">お知らせ</span>
+            </div>
+            <div class="list-content">
+              <p style="text-align: center; color: #94a3b8; padding: 40px;">お知らせはありません</p>
+            </div>
+          `;
+        }
+        
+        // 1行目をタイトル、残りを本文として分離
+        const lines = announcement.message.split('\n');
+        const title = lines[0];
+        const body = lines.slice(1).join('\n').trim();
+        
+        return `
+          <div class="header">
+            <button id="backBtn" class="back-btn">← 戻る</button>
+            <span class="header-title">お知らせ</span>
+          </div>
+          <div class="list-content">
+            <div style="background: #1e293b; border-radius: 12px; padding: 20px;">
+              <h2 style="font-size: 18px; color: #f8fafc; margin: 0 0 16px 0;">📢 ${title}</h2>
+              ${body ? `<div style="background: #0f172a; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                <p style="font-size: 14px; color: #e2e8f0; white-space: pre-wrap; line-height: 1.7; margin: 0;">${body}</p>
+              </div>` : ''}
+              <p style="font-size: 11px; color: #64748b; text-align: right; margin: 0;">
+                ${new Date(announcement.createdAt).toLocaleString('ja-JP')}
+              </p>
+            </div>
+          </div>
+        `;
+      },
+
       // イベントバインド
       bindEvents: function(view) {
         const self = this;
@@ -6468,6 +6523,14 @@
           if (historyBtn) {
             historyBtn.addEventListener('click', function() {
               self.render('history');
+            });
+          }
+
+          // お知らせ詳細ボタン
+          const viewAnnouncementBtn = document.getElementById('viewAnnouncementBtn');
+          if (viewAnnouncementBtn) {
+            viewAnnouncementBtn.addEventListener('click', function() {
+              self.render('announcementDetail');
             });
           }
 
@@ -9061,20 +9124,27 @@
 
         // お知らせ送信
         if (view === 'announcement') {
+          const announcementTitle = document.getElementById('announcementTitle');
           const announcementText = document.getElementById('announcementText');
           const sendBtn = document.getElementById('sendAnnouncementBtn');
           const cancelBtn = document.getElementById('cancelAnnouncementBtn');
           
           if (sendBtn) {
             sendBtn.addEventListener('click', function() {
+              const title = announcementTitle.value.trim();
               const message = announcementText.value.trim();
+              if (!title) {
+                alert('タイトルを入力してください');
+                return;
+              }
               if (!message) {
-                alert('お知らせ内容を入力してください');
+                alert('本文を入力してください');
                 return;
               }
               
-              if (confirm('このお知らせを全従業員に送信しますか？\n\n' + message)) {
+              if (confirm('このお知らせを全従業員に送信しますか？\n\n【タイトル】\n' + title + '\n\n【本文】\n' + message)) {
                 App.announcement = {
+                  title: title,
                   message: message,
                   createdAt: new Date().toISOString()
                 };
