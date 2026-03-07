@@ -3076,6 +3076,132 @@
       background-color: #7c2d12;
       border-color: #f59e0b;
     }
+    
+    /* 汎用モーダル */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+    .modal-content {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 24px;
+      width: 100%;
+      max-width: 400px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      text-align: center;
+      color: #f1f5f9;
+    }
+    .modal-form-group {
+      margin-bottom: 16px;
+    }
+    .modal-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+    .modal-input, .modal-select, .modal-textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      background: #0f172a;
+      color: #f1f5f9;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    .modal-select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 16px;
+      padding-right: 40px;
+    }
+    .modal-textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+    .modal-time-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .modal-time-row select {
+      flex: 1;
+    }
+    .modal-time-row span {
+      color: #94a3b8;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .modal-buttons {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .modal-btn {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .modal-btn-primary {
+      background: #3b82f6;
+      color: white;
+    }
+    .modal-btn-success {
+      background: #10b981;
+      color: white;
+    }
+    .modal-btn-cancel {
+      background: #475569;
+      color: white;
+    }
+    .modal-btn-danger {
+      background: #e53e3e;
+      color: white;
+    }
+    .modal-info {
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .modal-info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+    }
+    .modal-info-label {
+      color: #64748b;
+    }
+    .modal-info-value {
+      color: #f1f5f9;
+      font-weight: 500;
+    }
   </style>
 </head>
 <body>
@@ -3436,8 +3562,8 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.7.7';
-    const APP_UPDATE_DATE = '2026/02/03';
+    const APP_VERSION = 'v2.8.0';
+    const APP_UPDATE_DATE = '2026/03/07';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
     }
@@ -3759,8 +3885,7 @@
         const lastDay = new Date(year, month + 1, 0);
         const startDayOfWeek = firstDay.getDay();
         const daysInMonth = lastDay.getDate();
-        const today = new Date();
-        const todayStr = today.toISOString().split('T')[0];
+        const todayStr = this.getToday(); // 日本時間で今日を取得
         
         // この月の出勤日を取得
         const userId = this.currentUser ? this.currentUser.id : null;
@@ -5660,9 +5785,59 @@
           correctionsHtml = '<p class="empty-text">修正依頼はありません</p>';
         } else {
           corrections.forEach(c => {
-            const record = App.records.find(r => r.id === c.recordId);
             const statusClass = c.status === 'pending' ? 'pending' : (c.status === 'approved' ? 'approved' : 'rejected');
             const statusText = c.status === 'pending' ? '未処理' : (c.status === 'approved' ? '承認済' : '却下');
+            
+            // 新形式（timeCorrection）か旧形式かで表示を分ける
+            let detailHtml = '';
+            if (c.type === 'timeCorrection') {
+              // 新形式：申請内容を表示
+              const startTime = String(c.startHour).padStart(2,'0') + ':' + String(c.startMin).padStart(2,'0');
+              const endTime = c.endHour !== null ? String(c.endHour).padStart(2,'0') + ':' + String(c.endMin).padStart(2,'0') : '未設定';
+              detailHtml = `
+                <p class="correction-date">📅 ${App.formatDate(c.workDate)}</p>
+                <p class="correction-detail">
+                  <strong>申請内容:</strong><br>
+                  現場: ${c.jobSiteName || '不明'}<br>
+                  始業: ${startTime}<br>
+                  終業: ${endTime}
+                </p>
+                ${c.comment ? `<p class="correction-reason">📝 ${c.comment}</p>` : ''}
+              `;
+            } else {
+              // 旧形式：既存の記録を参照
+              const record = App.records.find(r => r.id === c.recordId);
+              detailHtml = `
+                <p class="correction-date">📅 ${App.formatDate(c.recordDate)}</p>
+                <p class="correction-detail">
+                  現場: ${record ? record.jobSiteName : '不明'}<br>
+                  記録: ${record ? App.formatTime(record.clockInTime) + ' 〜 ' + App.formatTime(record.clockOutTime) : '不明'}
+                </p>
+                <p class="correction-reason">📝 ${c.reason}</p>
+              `;
+            }
+            
+            // ボタンの表示を新旧で分ける
+            let buttonsHtml = '';
+            if (c.status === 'pending') {
+              if (c.type === 'timeCorrection') {
+                // 新形式：承認で記録追加、却下で取り下げ
+                buttonsHtml = `
+                  <div class="correction-actions">
+                    <button class="approve-btn" data-correction="${c.id}">承認（記録追加）</button>
+                    <button class="reject-btn" data-correction="${c.id}">却下（取り下げ）</button>
+                  </div>
+                `;
+              } else {
+                // 旧形式：承認で記録削除
+                buttonsHtml = `
+                  <div class="correction-actions">
+                    <button class="approve-btn" data-correction="${c.id}">承認（記録削除）</button>
+                    <button class="reject-btn" data-correction="${c.id}">却下</button>
+                  </div>
+                `;
+              }
+            }
             
             correctionsHtml += `
               <div class="correction-card ${statusClass}">
@@ -5670,19 +5845,9 @@
                   <span class="correction-employee">${c.employeeName}</span>
                   <span class="correction-status ${statusClass}">${statusText}</span>
                 </div>
-                <p class="correction-date">📅 ${App.formatDate(c.recordDate)}</p>
-                <p class="correction-detail">
-                  現場: ${record ? record.jobSiteName : '不明'}<br>
-                  記録: ${record ? App.formatTime(record.clockInTime) + ' 〜 ' + App.formatTime(record.clockOutTime) : '不明'}
-                </p>
-                <p class="correction-reason">📝 ${c.reason}</p>
+                ${detailHtml}
                 <p class="correction-time">依頼日時: ${new Date(c.createdAt).toLocaleString('ja-JP')}</p>
-                ${c.status === 'pending' ? `
-                  <div class="correction-actions">
-                    <button class="approve-btn" data-correction="${c.id}">承認（記録削除）</button>
-                    <button class="reject-btn" data-correction="${c.id}">却下</button>
-                  </div>
-                ` : ''}
+                ${buttonsHtml}
               </div>
             `;
           });
@@ -5691,7 +5856,7 @@
         return `
           <div class="header">
             <button id="backBtn" class="back-btn">← 戻る</button>
-            <span class="header-title">修正依頼一覧</span>
+            <span class="header-title">出退勤誤入力編集依頼</span>
           </div>
           <div class="list-content">
             ${correctionsHtml}
@@ -6255,36 +6420,142 @@
             });
           }
 
-          // 修正依頼ボタン
+          // 修正依頼ボタン - 選択式モーダルを表示
           document.querySelectorAll('.correction-btn').forEach(function(btn) {
             btn.addEventListener('click', function() {
               const recordId = this.getAttribute('data-record');
               const record = App.records.find(r => r.id === recordId);
-              if (!record) return;
-
-              const reason = prompt('修正依頼の理由を入力してください\n例: 始業時間を間違えた、終業を押し忘れた など');
-              if (!reason) return;
-
-              App.corrections.push({
-                id: Date.now().toString(),
-                recordId: recordId,
-                recordDate: record.workDate,
-                employeeId: App.currentUser.id,
-                employeeName: App.currentUser.name,
-                reason: reason,
-                status: 'pending',
-                createdAt: new Date().toISOString()
-              });
-              App.save();
-              alert('修正依頼を送信しました。管理者が確認します。');
-              // 役割に応じた画面に戻る
-              if (App.currentUser.role === 'admin') {
-                self.render('admin');
-              } else if (App.currentUser.role === 'subadmin') {
-                self.render('subadmin');
-              } else {
-                self.render('home');
+              
+              // 時間オプションを生成
+              let hourOptions = '';
+              for (let h = 0; h < 24; h++) {
+                const hStr = String(h).padStart(2, '0');
+                const selected = h === 8 ? 'selected' : '';
+                hourOptions += `<option value="${h}" ${selected}>${hStr}</option>`;
               }
+              let minOptions = '';
+              [0, 15, 30, 45].forEach(m => {
+                const mStr = String(m).padStart(2, '0');
+                const selected = m === 0 ? 'selected' : '';
+                minOptions += `<option value="${m}" ${selected}>${mStr}</option>`;
+              });
+              
+              // 現場オプションを生成
+              let siteOptions = '<option value="">-- 現場を選択 --</option>';
+              App.jobSites.filter(s => s.isActive).forEach(site => {
+                siteOptions += `<option value="${site.id}">${site.name}</option>`;
+              });
+              
+              // モーダルHTML
+              const modalHtml = `
+                <div class="modal-overlay" id="correctionModal">
+                  <div class="modal-content">
+                    <div class="modal-title">📝 出退勤の修正申請</div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">出勤日</label>
+                      <input type="date" id="correctionDate" class="modal-input" value="${App.getToday()}">
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">現場</label>
+                      <select id="correctionSite" class="modal-select">
+                        ${siteOptions}
+                      </select>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">始業時刻</label>
+                      <div class="modal-time-row">
+                        <select id="correctionStartHour" class="modal-select">${hourOptions}</select>
+                        <span>:</span>
+                        <select id="correctionStartMin" class="modal-select">${minOptions}</select>
+                      </div>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">終業時刻（任意）</label>
+                      <div class="modal-time-row">
+                        <select id="correctionEndHour" class="modal-select">
+                          <option value="">--</option>
+                          ${hourOptions.replace('selected', '')}
+                        </select>
+                        <span>:</span>
+                        <select id="correctionEndMin" class="modal-select">
+                          <option value="">--</option>
+                          ${minOptions.replace('selected', '')}
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">コメント（修正理由など）</label>
+                      <textarea id="correctionComment" class="modal-textarea" placeholder="例: 出勤打刻を忘れました"></textarea>
+                    </div>
+                    
+                    <div class="modal-buttons">
+                      <button class="modal-btn modal-btn-cancel" id="correctionCancel">キャンセル</button>
+                      <button class="modal-btn modal-btn-primary" id="correctionSubmit">申請する</button>
+                    </div>
+                  </div>
+                </div>
+              `;
+              
+              document.body.insertAdjacentHTML('beforeend', modalHtml);
+              
+              // キャンセルボタン
+              document.getElementById('correctionCancel').addEventListener('click', function() {
+                document.getElementById('correctionModal').remove();
+              });
+              
+              // 申請ボタン
+              document.getElementById('correctionSubmit').addEventListener('click', function() {
+                const date = document.getElementById('correctionDate').value;
+                const siteId = document.getElementById('correctionSite').value;
+                const startHour = document.getElementById('correctionStartHour').value;
+                const startMin = document.getElementById('correctionStartMin').value;
+                const endHour = document.getElementById('correctionEndHour').value;
+                const endMin = document.getElementById('correctionEndMin').value;
+                const comment = document.getElementById('correctionComment').value;
+                
+                if (!date || !siteId || startHour === '') {
+                  alert('出勤日、現場、始業時刻は必須です');
+                  return;
+                }
+                
+                const site = App.jobSites.find(s => s.id === siteId);
+                
+                // 申請データを作成（新しい形式）
+                App.corrections.push({
+                  id: Date.now().toString(),
+                  type: 'timeCorrection',
+                  employeeId: App.currentUser.id,
+                  employeeName: App.currentUser.name,
+                  workDate: date,
+                  jobSiteId: siteId,
+                  jobSiteName: site ? site.name : '',
+                  startHour: parseInt(startHour),
+                  startMin: parseInt(startMin),
+                  endHour: endHour !== '' ? parseInt(endHour) : null,
+                  endMin: endMin !== '' ? parseInt(endMin) : null,
+                  comment: comment,
+                  status: 'pending',
+                  createdAt: new Date().toISOString()
+                });
+                
+                App.save();
+                document.getElementById('correctionModal').remove();
+                alert('修正申請を送信しました。管理者が確認します。');
+                
+                // 役割に応じた画面に戻る
+                if (App.currentUser.role === 'admin') {
+                  self.render('admin');
+                } else if (App.currentUser.role === 'subadmin') {
+                  self.render('subadmin');
+                } else {
+                  self.render('home');
+                }
+              });
             });
           });
         }
@@ -6524,88 +6795,158 @@
                 return;
               }
               
-              // 現場選択
-              let siteOptions = '';
-              App.jobSites.filter(s => s.isActive).forEach((site, idx) => {
-                siteOptions += (idx + 1) + ': ' + site.name + '\n';
+              // 現場オプションを生成
+              let siteOptions = '<option value="">-- 現場を選択 --</option>';
+              App.jobSites.filter(s => s.isActive).forEach(site => {
+                siteOptions += `<option value="${site.id}">${site.name}</option>`;
               });
               
-              const siteChoice = prompt(
-                `【${emp.name}】${workDate} の出勤を追加\n\n` +
-                `現場を選択してください:\n\n` + siteOptions + '\n番号を入力:',
-                ''
-              );
-              
-              if (siteChoice === null || siteChoice === '') return;
-              
-              const activeSites = App.jobSites.filter(s => s.isActive);
-              const siteIdx = parseInt(siteChoice) - 1;
-              if (siteIdx < 0 || siteIdx >= activeSites.length) {
-                alert('無効な番号です');
-                return;
+              // 時間オプションを生成
+              let hourOptions = '';
+              for (let h = 0; h < 24; h++) {
+                const hStr = String(h).padStart(2, '0');
+                const selected = h === 8 ? 'selected' : '';
+                hourOptions += `<option value="${h}" ${selected}>${hStr}</option>`;
               }
-              const site = activeSites[siteIdx];
+              let minOptions = '';
+              [0, 15, 30, 45].forEach(m => {
+                const mStr = String(m).padStart(2, '0');
+                const selected = m === 0 ? 'selected' : '';
+                minOptions += `<option value="${m}" ${selected}>${mStr}</option>`;
+              });
               
-              // 始業時刻
-              const clockInTime = prompt('始業時刻 (HH:MM)', '08:00');
-              if (clockInTime === null || clockInTime === '') return;
+              // モーダルHTML
+              const modalHtml = `
+                <div class="modal-overlay" id="addEmpRecordModal">
+                  <div class="modal-content">
+                    <div class="modal-title">📝 出勤記録を追加</div>
+                    <div class="modal-info">
+                      <div class="modal-info-row">
+                        <span class="modal-info-label">従業員</span>
+                        <span class="modal-info-value">${emp.name}</span>
+                      </div>
+                      <div class="modal-info-row">
+                        <span class="modal-info-label">対象日</span>
+                        <span class="modal-info-value">${workDate}</span>
+                      </div>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">現場</label>
+                      <select id="addEmpSiteSelect" class="modal-select">${siteOptions}</select>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">始業時刻</label>
+                      <div class="modal-time-row">
+                        <select id="addEmpStartHour" class="modal-select">${hourOptions}</select>
+                        <span>:</span>
+                        <select id="addEmpStartMin" class="modal-select">${minOptions}</select>
+                      </div>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">終業時刻（任意）</label>
+                      <div class="modal-time-row">
+                        <select id="addEmpEndHour" class="modal-select">
+                          <option value="">--</option>
+                          ${hourOptions.replace('selected', '').replace(' selected', '')}
+                        </select>
+                        <span>:</span>
+                        <select id="addEmpEndMin" class="modal-select">
+                          <option value="">--</option>
+                          ${minOptions.replace('selected', '').replace(' selected', '')}
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">日勤 / 夜勤</label>
+                      <select id="addEmpShiftType" class="modal-select">
+                        <option value="day">☀️ 日勤</option>
+                        <option value="night">🌙 夜勤</option>
+                      </select>
+                    </div>
+                    
+                    <div class="modal-buttons">
+                      <button class="modal-btn modal-btn-cancel" id="addEmpRecordCancel">キャンセル</button>
+                      <button class="modal-btn modal-btn-success" id="addEmpRecordSubmit">追加する</button>
+                    </div>
+                  </div>
+                </div>
+              `;
               
-              // 終業時刻
-              const clockOutTime = prompt('終業時刻 (HH:MM)（未終業なら空欄）', '17:00');
+              document.body.insertAdjacentHTML('beforeend', modalHtml);
               
-              // 日勤/夜勤
-              const shiftChoice = prompt('日勤/夜勤を選択:\n1: 日勤\n2: 夜勤\n\n番号を入力:', '1');
-              const shiftType = shiftChoice === '2' ? 'night' : 'day';
+              // キャンセルボタン
+              document.getElementById('addEmpRecordCancel').addEventListener('click', function() {
+                document.getElementById('addEmpRecordModal').remove();
+              });
               
-              // 始業時刻を作成
-              const [inH, inM] = clockInTime.split(':').map(Number);
-              const clockInDate = new Date(workDate + 'T00:00:00');
-              clockInDate.setHours(inH, inM, 0, 0);
-              
-              // 終業時刻を作成
-              let clockOutDate = null;
-              let workHours = null;
-              let status = 'working';
-              
-              if (clockOutTime) {
-                const [outH, outM] = clockOutTime.split(':').map(Number);
-                clockOutDate = new Date(workDate + 'T00:00:00');
-                clockOutDate.setHours(outH, outM, 0, 0);
-                // 終業が始業より早い場合は翌日
-                if (clockOutDate <= clockInDate) {
-                  clockOutDate.setDate(clockOutDate.getDate() + 1);
+              // 追加ボタン
+              document.getElementById('addEmpRecordSubmit').addEventListener('click', function() {
+                const siteId = document.getElementById('addEmpSiteSelect').value;
+                const startHour = document.getElementById('addEmpStartHour').value;
+                const startMin = document.getElementById('addEmpStartMin').value;
+                const endHour = document.getElementById('addEmpEndHour').value;
+                const endMin = document.getElementById('addEmpEndMin').value;
+                const shiftType = document.getElementById('addEmpShiftType').value;
+                
+                if (!siteId || startHour === '') {
+                  alert('現場と始業時刻は必須です');
+                  return;
                 }
-                workHours = (clockOutDate - clockInDate) / (1000 * 60 * 60);
-                workHours = Math.round(workHours * 100) / 100;
-                status = 'completed';
-              }
-              
-              // 新しい記録を作成
-              const newRecord = {
-                id: Date.now().toString(),
-                employeeId: empId,
-                employeeName: emp.name,
-                jobSiteId: site.id,
-                jobSiteName: site.name,
-                workDate: workDate,
-                clockInTime: clockInDate.toISOString(),
-                clockOutTime: clockOutDate ? clockOutDate.toISOString() : null,
-                shiftType: shiftType,
-                workHours: workHours,
-                status: status,
-                memo: '',
-                addedBy: App.currentUser.name,
-                addedAt: new Date().toISOString()
-              };
-              
-              App.records.push(newRecord);
-              App.save();
-              alert('出勤記録を追加しました');
-              self.render('employeeHistory');
+                
+                const site = App.jobSites.find(s => s.id === siteId);
+                
+                // 始業時刻を作成
+                const clockInDate = new Date(workDate + 'T00:00:00');
+                clockInDate.setHours(parseInt(startHour), parseInt(startMin), 0, 0);
+                
+                // 終業時刻を作成
+                let clockOutDate = null;
+                let workHours = null;
+                let status = 'working';
+                
+                if (endHour !== '' && endMin !== '') {
+                  clockOutDate = new Date(workDate + 'T00:00:00');
+                  clockOutDate.setHours(parseInt(endHour), parseInt(endMin), 0, 0);
+                  if (clockOutDate <= clockInDate) {
+                    clockOutDate.setDate(clockOutDate.getDate() + 1);
+                  }
+                  workHours = (clockOutDate - clockInDate) / (1000 * 60 * 60);
+                  workHours = Math.round(workHours * 100) / 100;
+                  status = 'completed';
+                }
+                
+                // 新しい記録を作成
+                const newRecord = {
+                  id: Date.now().toString(),
+                  employeeId: empId,
+                  employeeName: emp.name,
+                  jobSiteId: site.id,
+                  jobSiteName: site.name,
+                  workDate: workDate,
+                  clockInTime: clockInDate.toISOString(),
+                  clockOutTime: clockOutDate ? clockOutDate.toISOString() : null,
+                  shiftType: shiftType,
+                  workHours: workHours,
+                  status: status,
+                  memo: '',
+                  addedBy: App.currentUser.name,
+                  addedAt: new Date().toISOString()
+                };
+                
+                App.records.push(newRecord);
+                App.save();
+                document.getElementById('addEmpRecordModal').remove();
+                alert('出勤記録を追加しました');
+                self.render('employeeHistory');
+              });
             });
           });
           
-          // 編集ボタン
+          // 編集ボタン - 選択式モーダルを表示
           const editBtns = document.querySelectorAll('.edit-record-btn');
           editBtns.forEach(function(btn) {
             btn.addEventListener('click', function() {
@@ -6616,136 +6957,209 @@
                 return;
               }
               
-              // 現在の残業時間
+              // 現在の時刻を取得
+              const clockInDate = record.clockInTime ? new Date(record.clockInTime) : null;
+              const clockOutDate = record.clockOutTime ? new Date(record.clockOutTime) : null;
+              const currentStartHour = clockInDate ? clockInDate.getHours() : 8;
+              const currentStartMin = clockInDate ? Math.floor(clockInDate.getMinutes() / 15) * 15 : 0;
+              const currentEndHour = clockOutDate ? clockOutDate.getHours() : '';
+              const currentEndMin = clockOutDate ? Math.floor(clockOutDate.getMinutes() / 15) * 15 : '';
               const currentOvertime = record.overtimeHours || 0;
               
-              // 操作選択
-              const action = prompt(
-                `【${record.employeeName}】${record.workDate}\n` +
-                `現場: ${record.jobSiteName}\n` +
-                `残業: ${currentOvertime}時間\n\n` +
-                `操作を選択してください:\n` +
-                `1: 時刻を編集\n` +
-                `2: 現場名を変更\n` +
-                `3: 残業時間を編集\n` +
-                `4: この記録を削除\n\n` +
-                `番号を入力:`, '1'
-              );
+              // 時間オプション生成
+              let hourOptions = '';
+              for (let h = 0; h < 24; h++) {
+                const hStr = String(h).padStart(2, '0');
+                const selected = h === currentStartHour ? 'selected' : '';
+                hourOptions += `<option value="${h}" ${selected}>${hStr}</option>`;
+              }
+              let minOptions = '';
+              [0, 15, 30, 45].forEach(m => {
+                const mStr = String(m).padStart(2, '0');
+                const selected = m === currentStartMin ? 'selected' : '';
+                minOptions += `<option value="${m}" ${selected}>${mStr}</option>`;
+              });
               
-              if (action === null) return;
+              // 終業時刻オプション（現在の値をselected）
+              let endHourOptions = '<option value="">--</option>';
+              for (let h = 0; h < 24; h++) {
+                const hStr = String(h).padStart(2, '0');
+                const selected = h === currentEndHour ? 'selected' : '';
+                endHourOptions += `<option value="${h}" ${selected}>${hStr}</option>`;
+              }
+              let endMinOptions = '<option value="">--</option>';
+              [0, 15, 30, 45].forEach(m => {
+                const mStr = String(m).padStart(2, '0');
+                const selected = m === currentEndMin ? 'selected' : '';
+                endMinOptions += `<option value="${m}" ${selected}>${mStr}</option>`;
+              });
               
-              if (action === '1') {
-                // 時刻編集
-                const currentClockIn = record.clockInTime ? new Date(record.clockInTime).toTimeString().slice(0,5) : '';
-                const currentClockOut = record.clockOutTime ? new Date(record.clockOutTime).toTimeString().slice(0,5) : '';
+              // 現場オプション生成
+              let siteOptions = '';
+              App.jobSites.filter(s => s.isActive).forEach(site => {
+                const selected = site.id === record.jobSiteId ? 'selected' : '';
+                siteOptions += `<option value="${site.id}" ${selected}>${site.name}</option>`;
+              });
+              
+              // 残業オプション生成
+              let overtimeOptions = '';
+              for (let ot = 0; ot <= 10; ot++) {
+                const selected = ot === currentOvertime ? 'selected' : '';
+                overtimeOptions += `<option value="${ot}" ${selected}>${ot}時間</option>`;
+              }
+              
+              // 日勤/夜勤
+              const isNight = record.shiftType === 'night';
+              
+              // モーダルHTML
+              const modalHtml = `
+                <div class="modal-overlay" id="editRecordModal">
+                  <div class="modal-content">
+                    <div class="modal-title">📝 勤怠記録を編集</div>
+                    <div class="modal-info">
+                      <div class="modal-info-row">
+                        <span class="modal-info-label">従業員</span>
+                        <span class="modal-info-value">${record.employeeName}</span>
+                      </div>
+                      <div class="modal-info-row">
+                        <span class="modal-info-label">日付</span>
+                        <span class="modal-info-value">${record.workDate}</span>
+                      </div>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">現場</label>
+                      <select id="editSiteSelect" class="modal-select">${siteOptions}</select>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">日勤 / 夜勤</label>
+                      <select id="editShiftType" class="modal-select">
+                        <option value="day" ${!isNight ? 'selected' : ''}>☀️ 日勤</option>
+                        <option value="night" ${isNight ? 'selected' : ''}>🌙 夜勤</option>
+                      </select>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">始業時刻</label>
+                      <div class="modal-time-row">
+                        <select id="editStartHour" class="modal-select">${hourOptions}</select>
+                        <span>:</span>
+                        <select id="editStartMin" class="modal-select">${minOptions}</select>
+                      </div>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">終業時刻（空欄で勤務中に変更）</label>
+                      <div class="modal-time-row">
+                        <select id="editEndHour" class="modal-select">${endHourOptions}</select>
+                        <span>:</span>
+                        <select id="editEndMin" class="modal-select">${endMinOptions}</select>
+                      </div>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">残業時間</label>
+                      <select id="editOvertime" class="modal-select">${overtimeOptions}</select>
+                    </div>
+                    
+                    <div class="modal-buttons">
+                      <button class="modal-btn modal-btn-cancel" id="editRecordCancel">キャンセル</button>
+                      <button class="modal-btn modal-btn-primary" id="editRecordSave">保存</button>
+                    </div>
+                    
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #475569;">
+                      <button class="modal-btn modal-btn-danger" id="editRecordDelete" style="width: 100%;">🗑️ この記録を削除</button>
+                    </div>
+                  </div>
+                </div>
+              `;
+              
+              document.body.insertAdjacentHTML('beforeend', modalHtml);
+              
+              // キャンセルボタン
+              document.getElementById('editRecordCancel').addEventListener('click', function() {
+                document.getElementById('editRecordModal').remove();
+              });
+              
+              // 保存ボタン
+              document.getElementById('editRecordSave').addEventListener('click', function() {
+                const siteId = document.getElementById('editSiteSelect').value;
+                const shiftType = document.getElementById('editShiftType').value;
+                const startHour = document.getElementById('editStartHour').value;
+                const startMin = document.getElementById('editStartMin').value;
+                const endHour = document.getElementById('editEndHour').value;
+                const endMin = document.getElementById('editEndMin').value;
+                const overtime = parseInt(document.getElementById('editOvertime').value);
                 
-                const newClockIn = prompt('始業時刻 (HH:MM)', currentClockIn);
-                if (newClockIn === null) return;
+                const site = App.jobSites.find(s => s.id === siteId);
                 
-                const newClockOut = prompt('終業時刻 (HH:MM)（未終業の場合は空欄）', currentClockOut);
-                if (newClockOut === null) return;
-                
-                if (newClockIn) {
-                  const [h, m] = newClockIn.split(':').map(Number);
-                  const newDate = new Date(record.clockInTime);
-                  newDate.setHours(h, m, 0, 0);
-                  record.clockInTime = newDate.toISOString();
+                // 現場更新
+                if (site) {
+                  record.jobSiteId = site.id;
+                  record.jobSiteName = site.name;
                 }
                 
-                if (newClockOut) {
-                  const [h, m] = newClockOut.split(':').map(Number);
-                  let newDate;
+                // シフト更新
+                record.shiftType = shiftType;
+                
+                // 始業時刻更新
+                if (startHour !== '') {
+                  const newClockIn = new Date(record.clockInTime || record.workDate + 'T00:00:00');
+                  newClockIn.setHours(parseInt(startHour), parseInt(startMin), 0, 0);
+                  record.clockInTime = newClockIn.toISOString();
+                }
+                
+                // 終業時刻更新
+                if (endHour !== '' && endMin !== '') {
+                  let newClockOut;
                   if (record.clockOutTime) {
-                    newDate = new Date(record.clockOutTime);
+                    newClockOut = new Date(record.clockOutTime);
                   } else {
-                    newDate = new Date(record.clockInTime);
+                    newClockOut = new Date(record.clockInTime);
                   }
-                  newDate.setHours(h, m, 0, 0);
-                  if (newDate < new Date(record.clockInTime)) {
-                    newDate.setDate(newDate.getDate() + 1);
+                  newClockOut.setHours(parseInt(endHour), parseInt(endMin), 0, 0);
+                  // 終業が始業より前なら翌日
+                  if (newClockOut <= new Date(record.clockInTime)) {
+                    newClockOut.setDate(newClockOut.getDate() + 1);
                   }
-                  record.clockOutTime = newDate.toISOString();
+                  record.clockOutTime = newClockOut.toISOString();
                   record.status = 'completed';
                   
+                  // 勤務時間を計算
                   const clockInTime = new Date(record.clockInTime);
                   const clockOutTime = new Date(record.clockOutTime);
                   const workHours = (clockOutTime - clockInTime) / (1000 * 60 * 60);
                   record.workHours = Math.round(workHours * 100) / 100;
                 } else {
+                  // 終業なしに変更
                   record.clockOutTime = null;
                   record.status = 'working';
                   record.workHours = null;
                 }
                 
+                // 残業時間更新
+                record.overtimeHours = overtime;
+                
                 App.save();
-                alert('時刻を更新しました');
-                
-              } else if (action === '2') {
-                // 現場名変更
-                let siteOptions = '';
-                App.jobSites.filter(s => s.isActive).forEach((site, idx) => {
-                  siteOptions += (idx + 1) + ': ' + site.name + '\n';
-                });
-                
-                const siteChoice = prompt(
-                  '現場を選択してください:\n\n' + siteOptions + '\n番号を入力:',
-                  ''
-                );
-                
-                if (siteChoice === null || siteChoice === '') return;
-                
-                const siteIdx = parseInt(siteChoice) - 1;
-                const activeSites = App.jobSites.filter(s => s.isActive);
-                if (siteIdx >= 0 && siteIdx < activeSites.length) {
-                  const newSite = activeSites[siteIdx];
-                  record.jobSiteId = newSite.id;
-                  record.jobSiteName = newSite.name;
-                  App.save();
-                  alert('現場を「' + newSite.name + '」に変更しました');
-                } else {
-                  alert('無効な番号です');
-                  return;
-                }
-                
-              } else if (action === '3') {
-                // 残業時間編集
-                const currentOT = record.overtimeHours || 0;
-                const newOT = prompt(
-                  `現在の残業時間: ${currentOT}時間\n\n` +
-                  `新しい残業時間を入力してください（0〜10時間）:`,
-                  currentOT.toString()
-                );
-                
-                if (newOT === null) return;
-                
-                const otHours = parseInt(newOT);
-                if (isNaN(otHours) || otHours < 0 || otHours > 10) {
-                  alert('0〜10の数値を入力してください');
-                  return;
-                }
-                
-                record.overtimeHours = otHours;
-                App.save();
-                alert(`残業時間を${otHours}時間に更新しました`);
-                
-              } else if (action === '4') {
-                // 削除
+                document.getElementById('editRecordModal').remove();
+                alert('記録を更新しました');
+                self.render('employeeHistory');
+              });
+              
+              // 削除ボタン
+              document.getElementById('editRecordDelete').addEventListener('click', function() {
                 if (confirm(`本当にこの記録を削除しますか？\n\n${record.workDate} ${record.jobSiteName}`)) {
                   const idx = App.records.findIndex(r => r.id === recordId);
                   if (idx !== -1) {
                     App.records.splice(idx, 1);
                     App.save();
+                    document.getElementById('editRecordModal').remove();
                     alert('記録を削除しました');
+                    self.render('employeeHistory');
                   }
-                } else {
-                  return;
                 }
-              } else {
-                alert('無効な番号です');
-                return;
-              }
-              
-              self.render('employeeHistory');
+              });
             });
           });
         }
@@ -7470,104 +7884,164 @@
             addAttendanceBtn.addEventListener('click', function() {
               const workDate = App.selectedDate;
               
-              // 従業員選択
+              // 従業員オプションを生成
               const visibleEmployees = App.getVisibleEmployees(true);
-              let empOptions = '';
-              visibleEmployees.forEach((emp, idx) => {
-                empOptions += (idx + 1) + ': ' + emp.name + '\n';
+              let empOptions = '<option value="">-- 従業員を選択 --</option>';
+              visibleEmployees.forEach(emp => {
+                empOptions += `<option value="${emp.id}">${emp.name}</option>`;
               });
               
-              const empChoice = prompt(
-                `${App.formatDate(workDate)} の出勤記録を追加\n\n` +
-                `従業員を選択:\n\n` + empOptions + '\n番号を入力:',
-                ''
-              );
-              
-              if (empChoice === null || empChoice === '') return;
-              
-              const empIdx = parseInt(empChoice) - 1;
-              if (empIdx < 0 || empIdx >= visibleEmployees.length) {
-                alert('無効な番号です');
-                return;
-              }
-              const emp = visibleEmployees[empIdx];
-              
-              // 現場選択
-              let siteOptions = '';
-              App.jobSites.filter(s => s.isActive).forEach((site, idx) => {
-                siteOptions += (idx + 1) + ': ' + site.name + '\n';
+              // 現場オプションを生成
+              let siteOptions = '<option value="">-- 現場を選択 --</option>';
+              App.jobSites.filter(s => s.isActive).forEach(site => {
+                siteOptions += `<option value="${site.id}">${site.name}</option>`;
               });
               
-              const siteChoice = prompt(
-                `現場を選択:\n\n` + siteOptions + '\n番号を入力:',
-                ''
-              );
-              
-              if (siteChoice === null || siteChoice === '') return;
-              
-              const activeSites = App.jobSites.filter(s => s.isActive);
-              const siteIdx = parseInt(siteChoice) - 1;
-              if (siteIdx < 0 || siteIdx >= activeSites.length) {
-                alert('無効な番号です');
-                return;
+              // 時間オプションを生成
+              let hourOptions = '';
+              for (let h = 0; h < 24; h++) {
+                const hStr = String(h).padStart(2, '0');
+                const selected = h === 8 ? 'selected' : '';
+                hourOptions += `<option value="${h}" ${selected}>${hStr}</option>`;
               }
-              const site = activeSites[siteIdx];
+              let minOptions = '';
+              [0, 15, 30, 45].forEach(m => {
+                const mStr = String(m).padStart(2, '0');
+                const selected = m === 0 ? 'selected' : '';
+                minOptions += `<option value="${m}" ${selected}>${mStr}</option>`;
+              });
               
-              // 始業時刻
-              const clockInTime = prompt('始業時刻 (HH:MM)', '08:00');
-              if (clockInTime === null || clockInTime === '') return;
+              // モーダルHTML
+              const modalHtml = `
+                <div class="modal-overlay" id="addAttendanceModal">
+                  <div class="modal-content">
+                    <div class="modal-title">📝 出勤記録を追加</div>
+                    <div class="modal-info">
+                      <div class="modal-info-row">
+                        <span class="modal-info-label">対象日</span>
+                        <span class="modal-info-value">${App.formatDate(workDate)}</span>
+                      </div>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">従業員</label>
+                      <select id="addEmpSelect" class="modal-select">${empOptions}</select>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">現場</label>
+                      <select id="addSiteSelect" class="modal-select">${siteOptions}</select>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">始業時刻</label>
+                      <div class="modal-time-row">
+                        <select id="addStartHour" class="modal-select">${hourOptions}</select>
+                        <span>:</span>
+                        <select id="addStartMin" class="modal-select">${minOptions}</select>
+                      </div>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">終業時刻（任意）</label>
+                      <div class="modal-time-row">
+                        <select id="addEndHour" class="modal-select">
+                          <option value="">--</option>
+                          ${hourOptions.replace('selected', '').replace(' selected', '')}
+                        </select>
+                        <span>:</span>
+                        <select id="addEndMin" class="modal-select">
+                          <option value="">--</option>
+                          ${minOptions.replace('selected', '').replace(' selected', '')}
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div class="modal-form-group">
+                      <label class="modal-label">日勤 / 夜勤</label>
+                      <select id="addShiftType" class="modal-select">
+                        <option value="day">☀️ 日勤</option>
+                        <option value="night">🌙 夜勤</option>
+                      </select>
+                    </div>
+                    
+                    <div class="modal-buttons">
+                      <button class="modal-btn modal-btn-cancel" id="addAttendanceCancel">キャンセル</button>
+                      <button class="modal-btn modal-btn-success" id="addAttendanceSubmit">追加する</button>
+                    </div>
+                  </div>
+                </div>
+              `;
               
-              // 終業時刻
-              const clockOutTime = prompt('終業時刻 (HH:MM)（未終業なら空欄）', '17:00');
+              document.body.insertAdjacentHTML('beforeend', modalHtml);
               
-              // 日勤/夜勤
-              const shiftChoice = prompt('日勤/夜勤:\n1: 日勤\n2: 夜勤\n\n番号を入力:', '1');
-              const shiftType = shiftChoice === '2' ? 'night' : 'day';
+              // キャンセルボタン
+              document.getElementById('addAttendanceCancel').addEventListener('click', function() {
+                document.getElementById('addAttendanceModal').remove();
+              });
               
-              // 始業時刻を作成
-              const [inH, inM] = clockInTime.split(':').map(Number);
-              const clockInDate = new Date(workDate + 'T00:00:00');
-              clockInDate.setHours(inH, inM, 0, 0);
-              
-              // 終業時刻を作成
-              let clockOutDate = null;
-              let workHours = null;
-              let status = 'working';
-              
-              if (clockOutTime) {
-                const [outH, outM] = clockOutTime.split(':').map(Number);
-                clockOutDate = new Date(workDate + 'T00:00:00');
-                clockOutDate.setHours(outH, outM, 0, 0);
-                if (clockOutDate <= clockInDate) {
-                  clockOutDate.setDate(clockOutDate.getDate() + 1);
+              // 追加ボタン
+              document.getElementById('addAttendanceSubmit').addEventListener('click', function() {
+                const empId = document.getElementById('addEmpSelect').value;
+                const siteId = document.getElementById('addSiteSelect').value;
+                const startHour = document.getElementById('addStartHour').value;
+                const startMin = document.getElementById('addStartMin').value;
+                const endHour = document.getElementById('addEndHour').value;
+                const endMin = document.getElementById('addEndMin').value;
+                const shiftType = document.getElementById('addShiftType').value;
+                
+                if (!empId || !siteId || startHour === '') {
+                  alert('従業員、現場、始業時刻は必須です');
+                  return;
                 }
-                workHours = (clockOutDate - clockInDate) / (1000 * 60 * 60);
-                workHours = Math.round(workHours * 100) / 100;
-                status = 'completed';
-              }
-              
-              // 新しい記録を作成
-              const newRecord = {
-                id: Date.now().toString(),
-                employeeId: emp.id,
-                employeeName: emp.name,
-                jobSiteId: site.id,
-                jobSiteName: site.name,
-                workDate: workDate,
-                clockInTime: clockInDate.toISOString(),
-                clockOutTime: clockOutDate ? clockOutDate.toISOString() : null,
-                shiftType: shiftType,
-                workHours: workHours,
-                status: status,
-                memo: '',
-                addedBy: App.currentUser.name,
-                addedAt: new Date().toISOString()
-              };
-              
-              App.records.push(newRecord);
-              App.save();
-              alert('出勤記録を追加しました');
-              self.render('dailyList');
+                
+                const emp = App.employees.find(e => e.id === empId);
+                const site = App.jobSites.find(s => s.id === siteId);
+                
+                // 始業時刻を作成
+                const clockInDate = new Date(workDate + 'T00:00:00');
+                clockInDate.setHours(parseInt(startHour), parseInt(startMin), 0, 0);
+                
+                // 終業時刻を作成
+                let clockOutDate = null;
+                let workHours = null;
+                let status = 'working';
+                
+                if (endHour !== '' && endMin !== '') {
+                  clockOutDate = new Date(workDate + 'T00:00:00');
+                  clockOutDate.setHours(parseInt(endHour), parseInt(endMin), 0, 0);
+                  if (clockOutDate <= clockInDate) {
+                    clockOutDate.setDate(clockOutDate.getDate() + 1);
+                  }
+                  workHours = (clockOutDate - clockInDate) / (1000 * 60 * 60);
+                  workHours = Math.round(workHours * 100) / 100;
+                  status = 'completed';
+                }
+                
+                // 新しい記録を作成
+                const newRecord = {
+                  id: Date.now().toString(),
+                  employeeId: emp.id,
+                  employeeName: emp.name,
+                  jobSiteId: site.id,
+                  jobSiteName: site.name,
+                  workDate: workDate,
+                  clockInTime: clockInDate.toISOString(),
+                  clockOutTime: clockOutDate ? clockOutDate.toISOString() : null,
+                  shiftType: shiftType,
+                  workHours: workHours,
+                  status: status,
+                  memo: '',
+                  addedBy: App.currentUser.name,
+                  addedAt: new Date().toISOString()
+                };
+                
+                App.records.push(newRecord);
+                App.save();
+                document.getElementById('addAttendanceModal').remove();
+                alert('出勤記録を追加しました');
+                self.render('dailyList');
+              });
             });
           }
 
@@ -8251,17 +8725,80 @@
               const correction = App.corrections.find(c => c.id === correctionId);
               if (!correction) return;
 
-              if (!confirm('この修正依頼を承認し、該当の勤怠記録を削除しますか？')) return;
-
-              // 勤怠記録を削除
-              App.records = App.records.filter(r => r.id !== correction.recordId);
+              // 新形式（timeCorrection）か旧形式かで処理を分ける
+              if (correction.type === 'timeCorrection') {
+                // 新形式：承認で出勤記録を追加
+                const startTime = String(correction.startHour).padStart(2,'0') + ':' + String(correction.startMin).padStart(2,'0');
+                const endTime = correction.endHour !== null ? String(correction.endHour).padStart(2,'0') + ':' + String(correction.endMin).padStart(2,'0') : '未設定';
+                
+                if (!confirm(
+                  `この修正申請を承認し、出勤記録を追加しますか？\n\n` +
+                  `従業員: ${correction.employeeName}\n` +
+                  `日付: ${correction.workDate}\n` +
+                  `現場: ${correction.jobSiteName}\n` +
+                  `始業: ${startTime}\n` +
+                  `終業: ${endTime}`
+                )) return;
+                
+                // 出勤記録を作成
+                const clockInDate = new Date(correction.workDate + 'T00:00:00');
+                clockInDate.setHours(correction.startHour, correction.startMin, 0, 0);
+                
+                let clockOutDate = null;
+                let workHours = null;
+                let status = 'working';
+                
+                if (correction.endHour !== null) {
+                  clockOutDate = new Date(correction.workDate + 'T00:00:00');
+                  clockOutDate.setHours(correction.endHour, correction.endMin, 0, 0);
+                  // 終業が始業より早い場合は翌日
+                  if (clockOutDate <= clockInDate) {
+                    clockOutDate.setDate(clockOutDate.getDate() + 1);
+                  }
+                  workHours = (clockOutDate - clockInDate) / (1000 * 60 * 60);
+                  workHours = Math.round(workHours * 100) / 100;
+                  status = 'completed';
+                }
+                
+                // 夜勤判定
+                const shiftType = (correction.startHour >= 17 || correction.startHour < 5) ? 'night' : 'day';
+                
+                const newRecord = {
+                  id: Date.now().toString(),
+                  employeeId: correction.employeeId,
+                  employeeName: correction.employeeName,
+                  jobSiteId: correction.jobSiteId,
+                  jobSiteName: correction.jobSiteName,
+                  workDate: correction.workDate,
+                  clockInTime: clockInDate.toISOString(),
+                  clockOutTime: clockOutDate ? clockOutDate.toISOString() : null,
+                  shiftType: shiftType,
+                  workHours: workHours,
+                  status: status,
+                  memo: correction.comment || '',
+                  addedBy: App.currentUser.name,
+                  addedAt: new Date().toISOString(),
+                  fromCorrection: true
+                };
+                
+                App.records.push(newRecord);
+                correction.status = 'approved';
+                correction.processedAt = new Date().toISOString();
+                
+                App.save();
+                alert('承認しました。出勤記録を追加しました。');
+              } else {
+                // 旧形式：承認で記録削除
+                if (!confirm('この修正依頼を承認し、該当の勤怠記録を削除しますか？')) return;
+                
+                App.records = App.records.filter(r => r.id !== correction.recordId);
+                correction.status = 'approved';
+                correction.processedAt = new Date().toISOString();
+                
+                App.save();
+                alert('承認しました。勤怠記録を削除しました。');
+              }
               
-              // 修正依頼を承認済みに
-              correction.status = 'approved';
-              correction.processedAt = new Date().toISOString();
-              
-              App.save();
-              alert('承認しました。勤怠記録を削除しました。');
               self.render('correctionList');
             });
           });
@@ -8273,13 +8810,23 @@
               const correction = App.corrections.find(c => c.id === correctionId);
               if (!correction) return;
 
-              if (!confirm('この修正依頼を却下しますか？')) return;
-
-              correction.status = 'rejected';
-              correction.processedAt = new Date().toISOString();
+              // 新形式は取り下げ（削除）、旧形式は却下
+              if (correction.type === 'timeCorrection') {
+                if (!confirm('この修正申請を取り下げますか？（申請は削除されます）')) return;
+                
+                // 申請を削除
+                App.corrections = App.corrections.filter(c => c.id !== correctionId);
+                App.save();
+                alert('申請を取り下げました。');
+              } else {
+                if (!confirm('この修正依頼を却下しますか？')) return;
+                
+                correction.status = 'rejected';
+                correction.processedAt = new Date().toISOString();
+                App.save();
+                alert('却下しました。');
+              }
               
-              App.save();
-              alert('却下しました。');
               self.render('correctionList');
             });
           });
