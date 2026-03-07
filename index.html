@@ -3576,7 +3576,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.8.3';
+    const APP_VERSION = 'v2.8.4';
     const APP_UPDATE_DATE = '2026/03/07';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -4299,7 +4299,7 @@
             ${calendarHtml}
           </div>
           <div class="home-content">
-            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.message.split('\\n')[0]}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
+            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.title || App.announcement.message.split('\\n')[0]}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
             ${paidLeaveHtml}
             <div class="greeting">
               <p class="greeting-text">${App.getGreeting()}</p>
@@ -4799,6 +4799,7 @@
             <span class="header-title">管理者メニュー</span>
           </div>
           <div class="admin-content">
+            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.title || App.announcement.message.split('\\n')[0]}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
             <p class="admin-date">${App.formatDate(App.getToday())}</p>
             
             <div class="admin-clockin-section">
@@ -4892,13 +4893,14 @@
                 <h3 class="announcement-title">📢 全員へお知らせ</h3>
                 ${App.announcement ? `
                   <div class="current-announcement">
-                    <p class="current-announcement-text">${App.announcement.message}</p>
+                    <p class="current-announcement-text">${App.announcement.title || App.announcement.message.split('\n')[0]}</p>
                     <p class="current-announcement-date">送信: ${new Date(App.announcement.createdAt).toLocaleString('ja-JP')}</p>
                     <button id="cancelAnnouncement" class="cancel-announcement-btn">取り消し</button>
                   </div>
                 ` : `
                   <div class="announcement-form">
-                    <input type="text" id="announcementInput" class="announcement-input" placeholder="メッセージを入力...">
+                    <input type="text" id="announcementTitle" class="announcement-input" style="margin-bottom: 8px;" placeholder="タイトル">
+                    <textarea id="announcementInput" class="announcement-input" style="min-height: 80px; resize: vertical;" placeholder="本文"></textarea>
                     <button id="sendAnnouncement" class="send-announcement-btn">送信</button>
                   </div>
                 `}
@@ -4938,7 +4940,7 @@
             <span class="header-title">管理者（副）メニュー</span>
           </div>
           <div class="admin-content">
-            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.message}</p></div>` : ''}
+            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.title || App.announcement.message.split('\\n')[0]}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
             <p class="admin-date">${App.formatDate(App.getToday())}</p>
             
             <div class="subadmin-clockin-section">
@@ -6300,10 +6302,9 @@
           `;
         }
         
-        // 1行目をタイトル、残りを本文として分離
-        const lines = announcement.message.split('\n');
-        const title = lines[0];
-        const body = lines.slice(1).join('\n').trim();
+        // 新形式（title/message）と旧形式（messageのみ）に対応
+        const title = announcement.title || announcement.message.split('\n')[0];
+        const body = announcement.title ? announcement.message : announcement.message.split('\n').slice(1).join('\n').trim();
         
         return `
           <div class="header">
@@ -7525,13 +7526,20 @@
           const sendAnnouncement = document.getElementById('sendAnnouncement');
           if (sendAnnouncement) {
             sendAnnouncement.addEventListener('click', function() {
-              const input = document.getElementById('announcementInput');
-              const message = input.value.trim();
+              const titleInput = document.getElementById('announcementTitle');
+              const messageInput = document.getElementById('announcementInput');
+              const title = titleInput.value.trim();
+              const message = messageInput.value.trim();
+              if (!title) {
+                alert('タイトルを入力してください');
+                return;
+              }
               if (!message) {
-                alert('メッセージを入力してください');
+                alert('本文を入力してください');
                 return;
               }
               App.announcement = {
+                title: title,
                 message: message,
                 createdAt: new Date().toISOString()
               };
@@ -7550,6 +7558,14 @@
                 App.save();
                 self.render('admin');
               }
+            });
+          }
+
+          // お知らせ詳細ボタン（管理者用）
+          const viewAnnouncementBtn = document.getElementById('viewAnnouncementBtn');
+          if (viewAnnouncementBtn) {
+            viewAnnouncementBtn.addEventListener('click', function() {
+              self.render('announcementDetail');
             });
           }
 
@@ -7584,6 +7600,14 @@
               }
             });
           });
+
+          // お知らせ詳細ボタン（副管理者用）
+          const viewAnnouncementBtn = document.getElementById('viewAnnouncementBtn');
+          if (viewAnnouncementBtn) {
+            viewAnnouncementBtn.addEventListener('click', function() {
+              self.render('announcementDetail');
+            });
+          }
 
           // 副管理者の出勤ボタン
           const subadminClockIn = document.getElementById('subadminClockIn');
