@@ -3576,7 +3576,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.8.4';
+    const APP_VERSION = 'v2.8.5';
     const APP_UPDATE_DATE = '2026/03/07';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -8936,30 +8936,53 @@
                 // 夜勤判定
                 const shiftType = (correction.startHour >= 17 || correction.startHour < 5) ? 'night' : 'day';
                 
-                const newRecord = {
-                  id: Date.now().toString(),
-                  employeeId: correction.employeeId,
-                  employeeName: correction.employeeName,
-                  jobSiteId: correction.jobSiteId,
-                  jobSiteName: correction.jobSiteName,
-                  workDate: correction.workDate,
-                  clockInTime: clockInDate.toISOString(),
-                  clockOutTime: clockOutDate ? clockOutDate.toISOString() : null,
-                  shiftType: shiftType,
-                  workHours: workHours,
-                  status: status,
-                  memo: correction.comment || '',
-                  addedBy: App.currentUser.name,
-                  addedAt: new Date().toISOString(),
-                  fromCorrection: true
-                };
+                // 同日・同シフトの既存記録をチェック
+                const existingRecord = App.records.find(r => 
+                  r.employeeId === correction.employeeId &&
+                  r.workDate === correction.workDate &&
+                  r.shiftType === shiftType
+                );
                 
-                App.records.push(newRecord);
+                if (existingRecord) {
+                  // 既存記録を上書き
+                  existingRecord.jobSiteId = correction.jobSiteId;
+                  existingRecord.jobSiteName = correction.jobSiteName;
+                  existingRecord.clockInTime = clockInDate.toISOString();
+                  existingRecord.clockOutTime = clockOutDate ? clockOutDate.toISOString() : null;
+                  existingRecord.workHours = workHours;
+                  existingRecord.status = status;
+                  existingRecord.memo = correction.comment || '';
+                  existingRecord.updatedBy = App.currentUser.name;
+                  existingRecord.updatedAt = new Date().toISOString();
+                  existingRecord.fromCorrection = true;
+                } else {
+                  // 新規記録を追加
+                  const newRecord = {
+                    id: Date.now().toString(),
+                    employeeId: correction.employeeId,
+                    employeeName: correction.employeeName,
+                    jobSiteId: correction.jobSiteId,
+                    jobSiteName: correction.jobSiteName,
+                    workDate: correction.workDate,
+                    clockInTime: clockInDate.toISOString(),
+                    clockOutTime: clockOutDate ? clockOutDate.toISOString() : null,
+                    shiftType: shiftType,
+                    workHours: workHours,
+                    status: status,
+                    memo: correction.comment || '',
+                    addedBy: App.currentUser.name,
+                    addedAt: new Date().toISOString(),
+                    fromCorrection: true
+                  };
+                  
+                  App.records.push(newRecord);
+                }
+                
                 correction.status = 'approved';
                 correction.processedAt = new Date().toISOString();
                 
                 App.save();
-                alert('承認しました。出勤記録を追加しました。');
+                alert(existingRecord ? '承認しました。既存の出勤記録を上書きしました。' : '承認しました。出勤記録を追加しました。');
               } else {
                 // 旧形式：承認で記録削除
                 if (!confirm('この修正依頼を承認し、該当の勤怠記録を削除しますか？')) return;
