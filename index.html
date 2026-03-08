@@ -3576,7 +3576,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.8.5';
+    const APP_VERSION = 'v2.8.6';
     const APP_UPDATE_DATE = '2026/03/07';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -4299,7 +4299,7 @@
             ${calendarHtml}
           </div>
           <div class="home-content">
-            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.title || App.announcement.message.split('\\n')[0]}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
+            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.title || ''}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
             ${paidLeaveHtml}
             <div class="greeting">
               <p class="greeting-text">${App.getGreeting()}</p>
@@ -4799,7 +4799,7 @@
             <span class="header-title">管理者メニュー</span>
           </div>
           <div class="admin-content">
-            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.title || App.announcement.message.split('\\n')[0]}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
+            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.title || ''}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
             <p class="admin-date">${App.formatDate(App.getToday())}</p>
             
             <div class="admin-clockin-section">
@@ -4893,7 +4893,7 @@
                 <h3 class="announcement-title">📢 全員へお知らせ</h3>
                 ${App.announcement ? `
                   <div class="current-announcement">
-                    <p class="current-announcement-text">${App.announcement.title || App.announcement.message.split('\n')[0]}</p>
+                    <p class="current-announcement-text">${App.announcement.title || ''}</p>
                     <p class="current-announcement-date">送信: ${new Date(App.announcement.createdAt).toLocaleString('ja-JP')}</p>
                     <button id="cancelAnnouncement" class="cancel-announcement-btn">取り消し</button>
                   </div>
@@ -4940,7 +4940,7 @@
             <span class="header-title">管理者（副）メニュー</span>
           </div>
           <div class="admin-content">
-            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.title || App.announcement.message.split('\\n')[0]}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
+            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.title || ''}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
             <p class="admin-date">${App.formatDate(App.getToday())}</p>
             
             <div class="subadmin-clockin-section">
@@ -8712,7 +8712,7 @@
               
               const backupId = await FirebaseSync.createBackup();
               if (backupId) {
-                alert('バックアップを作成しました\\n\\nID: ' + backupId);
+                alert('バックアップを作成しました\n\nID: ' + backupId);
                 self.render('backupManagement');
               } else {
                 alert('バックアップの作成に失敗しました');
