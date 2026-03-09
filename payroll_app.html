@@ -301,6 +301,7 @@
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   
   <!-- SheetJS (Excel読み書き) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -318,10 +319,7 @@
     
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
-    
-    // パスワード設定（Firebaseから読み込み、なければデフォルト）
-    let ACCESS_PASSWORD = 'Tokyo4555';
-    let ADMIN_PASSWORD = 'admin';
+    const auth = firebase.auth();
     
     // Excelから読み取った初期データ
     // 夜勤計算式: 夜勤（長時間）= 日給 × 1.25、夜勤（短時間）= 日給 + 2500
@@ -451,20 +449,25 @@
       
       // 初期化
       async init() {
-        this.render();
+        // ログイン状態をチェック
+        auth.onAuthStateChanged(async (user) => {
+          if (user) {
+            // ログイン済み
+            this.isAuthenticated = true;
+            await this.loadKintaiData();
+            this.currentView = 'menu';
+          } else {
+            // 未ログイン
+            this.isAuthenticated = false;
+            this.currentView = 'login';
+          }
+          this.render();
+        });
       },
       
       // Firebaseから勤怠データ読み込み
       async loadKintaiData() {
         try {
-          // パスワード設定を読み込み
-          const settingsSnap = await db.collection('payrollData').doc('settings').get();
-          if (settingsSnap.exists) {
-            const settings = settingsSnap.data();
-            if (settings.accessPassword) ACCESS_PASSWORD = settings.accessPassword;
-            if (settings.adminPassword) ADMIN_PASSWORD = settings.adminPassword;
-          }
-          
           // 従業員データ
           const empSnap = await db.collection('kintaiData').doc('employees').get();
           if (empSnap.exists) {
@@ -513,22 +516,6 @@
           await db.collection('payrollData').doc('employeeMaster').set(this.employeeMaster);
         } catch (error) {
           console.error('保存エラー:', error);
-          alert('保存に失敗しました');
-        }
-      },
-      
-      // パスワード保存
-      async savePasswords(accessPw, adminPw) {
-        try {
-          await db.collection('payrollData').doc('settings').set({
-            accessPassword: accessPw,
-            adminPassword: adminPw
-          });
-          ACCESS_PASSWORD = accessPw;
-          ADMIN_PASSWORD = adminPw;
-          alert('パスワードを変更しました');
-        } catch (error) {
-          console.error('パスワード保存エラー:', error);
           alert('保存に失敗しました');
         }
       },
@@ -720,7 +707,6 @@
           case 'employeeEdit': app.innerHTML = this.renderEmployeeEdit(); this.bindEmployeeEditEvents(); break;
           case 'monthlySummary': app.innerHTML = this.renderMonthlySummary(); this.bindMonthlySummaryEvents(); break;
           case 'csvExport': app.innerHTML = this.renderCSVExport(); this.bindCSVExportEvents(); break;
-          case 'passwordChange': app.innerHTML = this.renderPasswordChange(); this.bindPasswordChangeEvents(); break;
         }
       },
       
@@ -731,10 +717,10 @@
             <div class="login-box">
               <h2>💰 給与計算アプリ</h2>
               <p style="text-align: center; margin-bottom: 20px; color: rgba(255,255,255,0.7);">東京架設 管理者専用</p>
-              <input type="password" id="accessPassword" placeholder="アクセスパスワード">
-              <input type="password" id="adminPassword" placeholder="管理者パスワード">
+              <input type="email" id="email" placeholder="メールアドレス">
+              <input type="password" id="password" placeholder="パスワード">
               <button class="btn btn-primary" id="loginBtn">ログイン</button>
-              <p class="login-error hidden" id="loginError">パスワードが正しくありません</p>
+              <p class="login-error hidden" id="loginError">メールアドレスまたはパスワードが正しくありません</p>
             </div>
           </div>
         `;
@@ -742,25 +728,25 @@
       
       bindLoginEvents() {
         const login = async () => {
-          const accessPw = document.getElementById('accessPassword').value;
-          const adminPw = document.getElementById('adminPassword').value;
+          const email = document.getElementById('email').value;
+          const password = document.getElementById('password').value;
           
-          // まずFirebaseからパスワード読み込み
+          if (!email || !password) {
+            document.getElementById('loginError').textContent = '入力してください';
+            document.getElementById('loginError').classList.remove('hidden');
+            return;
+          }
+          
           try {
-            const settingsSnap = await db.collection('payrollData').doc('settings').get();
-            if (settingsSnap.exists) {
-              const settings = settingsSnap.data();
-              if (settings.accessPassword) ACCESS_PASSWORD = settings.accessPassword;
-              if (settings.adminPassword) ADMIN_PASSWORD = settings.adminPassword;
-            }
-          } catch (e) { console.log('設定読み込みスキップ'); }
-          
-          if (accessPw === ACCESS_PASSWORD && adminPw === ADMIN_PASSWORD) {
+            // Firebase認証でログイン
+            await auth.signInWithEmailAndPassword(email, password);
             this.isAuthenticated = true;
             await this.loadKintaiData();
             this.currentView = 'menu';
             this.render();
-          } else {
+          } catch (error) {
+            console.error('ログインエラー:', error);
+            document.getElementById('loginError').textContent = 'メールアドレスまたはパスワードが正しくありません';
             document.getElementById('loginError').classList.remove('hidden');
           }
         };
@@ -773,10 +759,14 @@
       
       // メニュー画面
       renderMenu() {
+        const user = auth.currentUser;
         return `
           <div class="header">
             <h1>💰 給与計算アプリ</h1>
-            <button class="btn btn-secondary" id="logoutBtn">ログアウト</button>
+            <div>
+              <span style="font-size:12px;color:rgba(255,255,255,0.6);margin-right:10px;">${user?.email || ''}</span>
+              <button class="btn btn-secondary" id="logoutBtn">ログアウト</button>
+            </div>
           </div>
           <div class="menu-grid">
             <div class="menu-card" data-view="employeeMaster">
@@ -794,11 +784,6 @@
               <h3>Excel出力</h3>
               <p>給与明細Excelを出力</p>
             </div>
-            <div class="menu-card" data-view="passwordChange">
-              <div class="icon">🔐</div>
-              <h3>パスワード変更</h3>
-              <p>アクセス制限の設定</p>
-            </div>
           </div>
         `;
       },
@@ -810,7 +795,8 @@
             this.render();
           });
         });
-        document.getElementById('logoutBtn').addEventListener('click', () => {
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+          await auth.signOut();
           this.isAuthenticated = false;
           this.currentView = 'login';
           this.render();
@@ -1174,42 +1160,6 @@
             console.error('Excel出力エラー:', error);
             alert('エラーが発生しました: ' + error.message);
           }
-        });
-      },
-      
-      // パスワード変更画面
-      renderPasswordChange() {
-        return `
-          <div class="header">
-            <div><button class="back-btn" id="backBtn">← 戻る</button><span style="font-size:1.2em;font-weight:600;">🔐 パスワード変更</span></div>
-          </div>
-          <div class="card">
-            <div class="card-header"><h3>新しいパスワードを設定</h3></div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>アクセスパスワード</label>
-                <input type="text" id="newAccessPassword" value="${ACCESS_PASSWORD}">
-                <div class="formula-note">全員共通のパスワード</div>
-              </div>
-              <div class="form-group">
-                <label>管理者パスワード</label>
-                <input type="text" id="newAdminPassword" value="${ADMIN_PASSWORD}">
-                <div class="formula-note">給与計算アプリ用</div>
-              </div>
-            </div>
-            <button class="btn btn-warning" id="savePasswordBtn" style="margin-top:15px;">🔐 パスワードを変更</button>
-          </div>
-        `;
-      },
-      
-      bindPasswordChangeEvents() {
-        document.getElementById('backBtn').addEventListener('click', () => { this.currentView = 'menu'; this.render(); });
-        document.getElementById('savePasswordBtn').addEventListener('click', async () => {
-          const accessPw = document.getElementById('newAccessPassword').value.trim();
-          const adminPw = document.getElementById('newAdminPassword').value.trim();
-          if (!accessPw || !adminPw) { alert('パスワードを入力してください'); return; }
-          if (!confirm(`パスワードを変更しますか？\n\nアクセス: ${accessPw}\n管理者: ${adminPw}`)) return;
-          await this.savePasswords(accessPw, adminPw);
         });
       }
     };
