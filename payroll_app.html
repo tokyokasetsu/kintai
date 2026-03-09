@@ -25,14 +25,12 @@
       background: rgba(255,255,255,0.1);
       border-radius: 12px;
       margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
     }
     .header h1 {
       font-size: 1.5em;
       color: #ffd700;
-    }
-    .header-buttons {
-      display: flex;
-      gap: 10px;
     }
     .btn {
       padding: 10px 20px;
@@ -61,6 +59,10 @@
     }
     .btn-secondary {
       background: rgba(255,255,255,0.2);
+      color: #fff;
+    }
+    .btn-warning {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
       color: #fff;
     }
     
@@ -111,13 +113,13 @@
     /* メニュー */
     .menu-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 20px;
       margin-top: 20px;
     }
     .menu-card {
       background: rgba(255,255,255,0.1);
-      padding: 30px;
+      padding: 25px;
       border-radius: 15px;
       text-align: center;
       cursor: pointer;
@@ -128,15 +130,16 @@
       background: rgba(255,255,255,0.15);
     }
     .menu-card .icon {
-      font-size: 3em;
-      margin-bottom: 15px;
+      font-size: 2.5em;
+      margin-bottom: 10px;
     }
     .menu-card h3 {
-      margin-bottom: 10px;
+      margin-bottom: 8px;
+      font-size: 1.1em;
     }
     .menu-card p {
       color: rgba(255,255,255,0.7);
-      font-size: 14px;
+      font-size: 12px;
     }
     
     /* テーブル */
@@ -151,13 +154,15 @@
       border-collapse: collapse;
     }
     th, td {
-      padding: 12px 15px;
+      padding: 12px 10px;
       text-align: left;
       border-bottom: 1px solid rgba(255,255,255,0.1);
+      font-size: 14px;
     }
     th {
       background: rgba(255,255,255,0.1);
       font-weight: 600;
+      white-space: nowrap;
     }
     tr:hover {
       background: rgba(255,255,255,0.05);
@@ -171,6 +176,7 @@
       display: block;
       margin-bottom: 5px;
       font-weight: 500;
+      font-size: 14px;
     }
     .form-group input, .form-group select {
       width: 100%;
@@ -183,7 +189,7 @@
     }
     .form-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 15px;
     }
     
@@ -210,104 +216,17 @@
     .month-selector {
       display: flex;
       align-items: center;
-      gap: 15px;
-      margin-bottom: 20px;
-    }
-    .month-selector select {
-      padding: 10px 20px;
-      border: none;
-      border-radius: 8px;
-      background: rgba(255,255,255,0.1);
-      color: #fff;
-      font-size: 16px;
-    }
-    
-    /* 集計サマリー */
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 15px;
-      margin-bottom: 20px;
-    }
-    .summary-item {
-      background: rgba(255,255,255,0.05);
-      padding: 15px;
-      border-radius: 10px;
-      text-align: center;
-    }
-    .summary-item .label {
-      font-size: 12px;
-      color: rgba(255,255,255,0.7);
-    }
-    .summary-item .value {
-      font-size: 1.5em;
-      font-weight: 700;
-      color: #ffd700;
-    }
-    
-    /* ローディング */
-    .loading {
-      text-align: center;
-      padding: 40px;
-    }
-    .loading::after {
-      content: '';
-      display: inline-block;
-      width: 40px;
-      height: 40px;
-      border: 3px solid rgba(255,255,255,0.3);
-      border-top-color: #ffd700;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    
-    /* 非表示 */
-    .hidden {
-      display: none !important;
-    }
-    
-    /* タブ */
-    .tabs {
-      display: flex;
       gap: 10px;
       margin-bottom: 20px;
+      flex-wrap: wrap;
     }
-    .tab {
-      padding: 10px 20px;
-      background: rgba(255,255,255,0.1);
+    .month-selector select {
+      padding: 10px 15px;
       border: none;
       border-radius: 8px;
+      background: rgba(255,255,255,0.1);
       color: #fff;
-      cursor: pointer;
-      transition: all 0.3s;
-    }
-    .tab.active {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-    
-    /* 入力フィールド数値 */
-    input[type="number"] {
-      -moz-appearance: textfield;
-    }
-    input[type="number"]::-webkit-inner-spin-button,
-    input[type="number"]::-webkit-outer-spin-button {
-      -webkit-appearance: none;
-    }
-
-    /* CSV出力プレビュー */
-    .csv-preview {
-      background: #1a1a2e;
-      padding: 15px;
-      border-radius: 8px;
-      font-family: monospace;
-      font-size: 12px;
-      overflow-x: auto;
-      white-space: pre;
-      max-height: 400px;
-      overflow-y: auto;
+      font-size: 14px;
     }
 
     /* 戻るボタン */
@@ -323,6 +242,55 @@
     .back-btn:hover {
       background: rgba(255,255,255,0.1);
     }
+
+    /* CSV出力プレビュー */
+    .csv-preview {
+      background: #1a1a2e;
+      padding: 15px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 11px;
+      overflow-x: auto;
+      white-space: pre;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    /* 非表示 */
+    .hidden {
+      display: none !important;
+    }
+    
+    /* 入力フィールド数値 */
+    input[type="number"] {
+      -moz-appearance: textfield;
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+    }
+
+    /* 計算式の説明 */
+    .formula-note {
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+      margin-top: 3px;
+    }
+
+    /* 金額表示 */
+    .amount {
+      text-align: right;
+    }
+    .amount-positive {
+      color: #38ef7d;
+    }
+    .amount-negative {
+      color: #f45c43;
+    }
+    .amount-total {
+      color: #ffd700;
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
@@ -333,6 +301,9 @@
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  
+  <!-- SheetJS (Excel読み書き) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   
   <script>
     // Firebase設定（勤怠アプリと同じ）
@@ -348,16 +319,17 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
     
-    // パスワード設定
-    const ACCESS_PASSWORD = 'Tokyo4555';
-    const ADMIN_PASSWORD = 'admin';
+    // パスワード設定（Firebaseから読み込み、なければデフォルト）
+    let ACCESS_PASSWORD = 'Tokyo4555';
+    let ADMIN_PASSWORD = 'admin';
     
-    // Excelから読み取った初期データ（従業員名で紐づけ）
+    // Excelから読み取った初期データ
+    // 夜勤計算式: 夜勤（長時間）= 日給 × 1.25、夜勤（短時間）= 日給 + 2500
     const INITIAL_PAYROLL_DATA = {
       '青山海斗': {
         dailyWage: 18000,
-        nightWageLong: 22500,
-        nightWageShort: 17500,
+        nightLongMultiplier: 1.25,  // 夜勤長 = 日給 × 1.25
+        nightShortBonus: 2500,      // 夜勤短 = 日給 + 2500
         familyAllowance: 5000,
         employmentInsurance: 3104,
         healthInsurance: 23288,
@@ -368,8 +340,8 @@
       },
       '月精晃大': {
         dailyWage: 17000,
-        nightWageLong: 0,
-        nightWageShort: 19500,
+        nightLongMultiplier: 1.25,
+        nightShortBonus: 2500,
         familyAllowance: 0,
         employmentInsurance: 2750,
         healthInsurance: 18829,
@@ -380,8 +352,8 @@
       },
       '古関弘志': {
         dailyWage: 18500,
-        nightWageLong: 21000,
-        nightWageShort: 0,
+        nightLongMultiplier: 1.25,
+        nightShortBonus: 2500,
         familyAllowance: 5000,
         employmentInsurance: 3055,
         healthInsurance: 28388,
@@ -391,22 +363,22 @@
         residentTax: 23000
       },
       '椙山圭': {
-        dailyWage: 880000, // 月給制
-        nightWageLong: 0,
-        nightWageShort: 0,
+        dailyWage: 880000,
+        isMonthlySalary: true,
+        nightLongMultiplier: 0,
+        nightShortBonus: 0,
         familyAllowance: 0,
         employmentInsurance: 0,
         healthInsurance: 43604,
         nursingInsurance: 6996,
         pension: 59475,
         incomeTax: 71321,
-        residentTax: 46100,
-        isMonthlySalary: true
+        residentTax: 46100
       },
       '松川敦': {
         dailyWage: 19000,
-        nightWageLong: 0,
-        nightWageShort: 0,
+        nightLongMultiplier: 1.25,
+        nightShortBonus: 2500,
         familyAllowance: 0,
         employmentInsurance: 2964,
         healthInsurance: 24775,
@@ -417,8 +389,8 @@
       },
       '松川大輔': {
         dailyWage: 20000,
-        nightWageLong: 0,
-        nightWageShort: 22500,
+        nightLongMultiplier: 1.25,
+        nightShortBonus: 2500,
         familyAllowance: 30000,
         employmentInsurance: 3332,
         healthInsurance: 29235,
@@ -429,8 +401,8 @@
       },
       '渡部直人': {
         dailyWage: 16000,
-        nightWageLong: 0,
-        nightWageShort: 18500,
+        nightLongMultiplier: 1.25,
+        nightShortBonus: 2500,
         familyAllowance: 0,
         employmentInsurance: 2721,
         healthInsurance: 17838,
@@ -440,22 +412,22 @@
         residentTax: 0
       },
       '寺本亮祐': {
-        dailyWage: 670000, // 月給制
-        nightWageLong: 0,
-        nightWageShort: 0,
+        dailyWage: 670000,
+        isMonthlySalary: true,
+        nightLongMultiplier: 0,
+        nightShortBonus: 0,
         familyAllowance: 0,
         employmentInsurance: 0,
         healthInsurance: 33694,
         nursingInsurance: 0,
         pension: 59475,
         incomeTax: 34520,
-        residentTax: 0,
-        isMonthlySalary: true
+        residentTax: 0
       },
       '徳永蓮汰': {
         dailyWage: 15000,
-        nightWageLong: 0,
-        nightWageShort: 17500,
+        nightLongMultiplier: 1.25,
+        nightShortBonus: 2500,
         familyAllowance: 30000,
         employmentInsurance: 0,
         healthInsurance: 16847,
@@ -475,6 +447,7 @@
       records: [],
       selectedYear: new Date().getFullYear(),
       selectedMonth: new Date().getMonth() + 1,
+      editingEmployeeId: null,
       
       // 初期化
       async init() {
@@ -484,11 +457,18 @@
       // Firebaseから勤怠データ読み込み
       async loadKintaiData() {
         try {
+          // パスワード設定を読み込み
+          const settingsSnap = await db.collection('payrollData').doc('settings').get();
+          if (settingsSnap.exists) {
+            const settings = settingsSnap.data();
+            if (settings.accessPassword) ACCESS_PASSWORD = settings.accessPassword;
+            if (settings.adminPassword) ADMIN_PASSWORD = settings.adminPassword;
+          }
+          
           // 従業員データ
           const empSnap = await db.collection('kintaiData').doc('employees').get();
           if (empSnap.exists) {
             this.employees = empSnap.data().list || [];
-            // isPrivate=trueの従業員を除外
             this.employees = this.employees.filter(e => !e.isPrivate);
           }
           
@@ -504,11 +484,10 @@
             this.employeeMaster = masterSnap.data() || {};
           }
           
-          // 初期データの自動適用（まだ登録されていない従業員のみ）
+          // 初期データの自動適用
           let needsSave = false;
           this.employees.forEach(emp => {
             if (!this.employeeMaster[emp.id]) {
-              // 名前で初期データを探す
               const initialData = INITIAL_PAYROLL_DATA[emp.name];
               if (initialData) {
                 this.employeeMaster[emp.id] = { ...initialData };
@@ -518,16 +497,11 @@
             }
           });
           
-          // 初期データを適用した場合は保存
           if (needsSave) {
             await this.saveEmployeeMaster();
-            console.log('初期データを保存しました');
           }
           
-          console.log('データ読み込み完了:', {
-            employees: this.employees.length,
-            records: this.records.length
-          });
+          console.log('データ読み込み完了');
         } catch (error) {
           console.error('データ読み込みエラー:', error);
         }
@@ -537,9 +511,24 @@
       async saveEmployeeMaster() {
         try {
           await db.collection('payrollData').doc('employeeMaster').set(this.employeeMaster);
-          console.log('従業員マスタ保存完了');
         } catch (error) {
           console.error('保存エラー:', error);
+          alert('保存に失敗しました');
+        }
+      },
+      
+      // パスワード保存
+      async savePasswords(accessPw, adminPw) {
+        try {
+          await db.collection('payrollData').doc('settings').set({
+            accessPassword: accessPw,
+            adminPassword: adminPw
+          });
+          ACCESS_PASSWORD = accessPw;
+          ADMIN_PASSWORD = adminPw;
+          alert('パスワードを変更しました');
+        } catch (error) {
+          console.error('パスワード保存エラー:', error);
           alert('保存に失敗しました');
         }
       },
@@ -553,18 +542,18 @@
           r.employeeId === employeeId &&
           r.workDate >= startDate &&
           r.workDate <= endDate &&
-          r.clockOutTime // 退勤済みのみ
+          r.clockOutTime
         );
         
         let dayShiftCount = 0;
-        let nightShiftLongCount = 0;  // 夜勤（長時間）
-        let nightShiftShortCount = 0; // 夜勤（短時間）※日勤+夜勤の日
+        let nightShiftLongCount = 0;
+        let nightShiftShortCount = 0;
         const dailyData = {};
         
         monthRecords.forEach(r => {
           const day = parseInt(r.workDate.split('-')[2]);
           if (!dailyData[day]) {
-            dailyData[day] = { dayShift: false, nightShift: false, site: '' };
+            dailyData[day] = { dayShift: false, nightShift: false, site: '', nightSite: '' };
           }
           
           if (r.shiftType === 'night') {
@@ -576,27 +565,18 @@
           }
         });
         
-        // 日勤・夜勤カウント
         Object.values(dailyData).forEach(d => {
           if (d.dayShift) dayShiftCount++;
           if (d.nightShift) {
             if (d.dayShift) {
-              // 日勤+夜勤の日は夜勤（短時間）
-              nightShiftShortCount++;
+              nightShiftShortCount++;  // 日勤+夜勤 = 短時間
             } else {
-              // 夜勤のみの日は夜勤（長時間）
-              nightShiftLongCount++;
+              nightShiftLongCount++;   // 夜勤のみ = 長時間
             }
           }
         });
         
-        return {
-          dayShiftCount,
-          nightShiftLongCount,
-          nightShiftShortCount,
-          dailyData,
-          records: monthRecords
-        };
+        return { dayShiftCount, nightShiftLongCount, nightShiftShortCount, dailyData, records: monthRecords };
       },
       
       // 給与計算
@@ -605,31 +585,60 @@
         const attendance = this.getMonthlyAttendance(employeeId, year, month);
         
         const dailyWage = master.dailyWage || 0;
-        const nightWageLong = master.nightWageLong || 0;  // 夜勤（長時間）単価
-        const nightWageShort = master.nightWageShort || 0; // 夜勤（短時間）単価
-        const familyAllowance = master.familyAllowance || 0;
-        const paidLeaveWage = master.paidLeaveWage || dailyWage;
+        const nightLongMultiplier = master.nightLongMultiplier || 1.25;
+        const nightShortBonus = master.nightShortBonus || 2500;
         
-        // 支給
+        // 夜勤単価の計算
+        const nightWageLong = Math.floor(dailyWage * nightLongMultiplier);  // 日給 × 1.25
+        const nightWageShort = dailyWage + nightShortBonus;  // 日給 + 2500
+        
+        // 月給制の場合
+        if (master.isMonthlySalary) {
+          const grossPay = dailyWage;
+          const totalDeduction = (master.employmentInsurance || 0) + (master.healthInsurance || 0) +
+            (master.nursingInsurance || 0) + (master.pension || 0) + (master.incomeTax || 0) + (master.residentTax || 0);
+          return {
+            attendance,
+            dailyWage,
+            isMonthlySalary: true,
+            dayShiftPay: dailyWage,
+            nightLongPay: 0,
+            nightShortPay: 0,
+            familyAllowance: master.familyAllowance || 0,
+            grossPay,
+            employmentInsurance: master.employmentInsurance || 0,
+            healthInsurance: master.healthInsurance || 0,
+            nursingInsurance: master.nursingInsurance || 0,
+            pension: master.pension || 0,
+            incomeTax: master.incomeTax || 0,
+            residentTax: master.residentTax || 0,
+            totalDeduction,
+            netPay: grossPay - totalDeduction
+          };
+        }
+        
+        // 日給制の計算
         const dayShiftPay = dailyWage * attendance.dayShiftCount;
         const nightLongPay = nightWageLong * attendance.nightShiftLongCount;
         const nightShortPay = nightWageShort * attendance.nightShiftShortCount;
+        const familyAllowance = master.familyAllowance || 0;
         const grossPay = dayShiftPay + nightLongPay + nightShortPay + familyAllowance;
         
-        // 控除
         const employmentInsurance = master.employmentInsurance || 0;
         const healthInsurance = master.healthInsurance || 0;
+        const nursingInsurance = master.nursingInsurance || 0;
         const pension = master.pension || 0;
         const incomeTax = master.incomeTax || 0;
         const residentTax = master.residentTax || 0;
-        const nursingInsurance = master.nursingInsurance || 0;
         
-        const totalDeduction = employmentInsurance + healthInsurance + pension + incomeTax + residentTax + nursingInsurance;
+        const totalDeduction = employmentInsurance + healthInsurance + nursingInsurance + pension + incomeTax + residentTax;
         const netPay = grossPay - totalDeduction;
         
         return {
           attendance,
           dailyWage,
+          nightWageLong,
+          nightWageShort,
           dayShiftPay,
           nightLongPay,
           nightShortPay,
@@ -637,66 +646,64 @@
           grossPay,
           employmentInsurance,
           healthInsurance,
+          nursingInsurance,
           pension,
           incomeTax,
           residentTax,
-          nursingInsurance,
           totalDeduction,
           netPay
         };
       },
       
-      // CSV生成（Excel形式に合わせる）
+      // CSV生成
       generateCSV(employeeId, year, month) {
         const emp = this.employees.find(e => e.id === employeeId);
         const master = this.employeeMaster[employeeId] || {};
         const attendance = this.getMonthlyAttendance(employeeId, year, month);
         const salary = this.calculateSalary(employeeId, year, month);
         
-        // 月の日数
         const lastDay = new Date(year, month, 0).getDate();
         const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+        const reiwa = year - 2018;
         
         let csv = '';
+        csv += `令和${reiwa}年${month}月分給与明細書,,,,,,,,${emp?.name || ''}　殿\n`;
+        csv += `日,曜日,出欠,夜勤,残業,危険,出張,現場名,項目,日数,金額\n`;
         
-        // ヘッダー行
-        csv += `令和${year - 2018}年${month}月分給与明細書,,,,,,,,${emp?.name || ''}　殿\n`;
-        csv += `日,曜日,出欠,夜勤,残業,危険,出張,現　場　名,日給（1日）,,${master.dailyWage || ''}\n`;
-        
-        // 各日のデータ
-        for (let day = 1; day <= lastDay; day++) {
+        for (let day = 1; day <= Math.max(lastDay, 22); day++) {
           const date = new Date(year, month - 1, day);
-          const weekday = weekdays[date.getDay()];
+          const weekday = day <= lastDay ? weekdays[date.getDay()] : '';
           const dayData = attendance.dailyData[day];
           
-          let attendance_str = '休';
-          let night_str = '';
-          let site_str = '';
+          let att = day <= lastDay ? '休' : '';
+          let night = '';
+          let site = '';
           
           if (dayData) {
-            if (dayData.dayShift) attendance_str = '出';
-            if (dayData.nightShift) night_str = '出';
-            site_str = dayData.site || dayData.nightSite || '';
+            if (dayData.dayShift) att = '出';
+            if (dayData.nightShift) night = '出';
+            site = dayData.site || dayData.nightSite || '';
           }
           
-          // 右側の給与項目（特定の行のみ）
-          let rightSide = '';
-          if (day === 1) rightSide = `,日勤,${attendance.dayShiftCount},${salary.dayShiftPay}`;
-          else if (day === 2) rightSide = `,夜勤(長時間),${attendance.nightShiftLongCount},${salary.nightLongPay}`;
-          else if (day === 3) rightSide = `,夜勤(短時間),${attendance.nightShiftShortCount},${salary.nightShortPay}`;
-          else if (day === 4) rightSide = `,※夜間割増・残業割増を含む`;
-          else if (day === 5) rightSide = `,家族手当,,${salary.familyAllowance}`;
-          else if (day === 6) rightSide = `,有給休暇,0,0`;
-          else if (day === 7) rightSide = `,残業手当,0,0`;
-          else if (day === 9) rightSide = `,計,,${salary.grossPay}`;
-          else if (day === 10) rightSide = `,雇用保険料,,${-salary.employmentInsurance}`;
-          else if (day === 11) rightSide = `,健康保険料,,${-salary.healthInsurance}`;
-          else if (day === 12) rightSide = `,厚生年金,,${-salary.pension}`;
-          else if (day === 13) rightSide = `,所得税,,${-salary.incomeTax}`;
-          else if (day === 14) rightSide = `,住民税,,${-salary.residentTax}`;
-          else if (day === 20) rightSide = `,差引支給額,,${salary.netPay}`;
+          let item = '', count = '', amount = '';
+          if (day === 1) { item = '日給（1日）'; amount = master.dailyWage || ''; }
+          else if (day === 2) { item = '日勤'; count = attendance.dayShiftCount; amount = salary.dayShiftPay; }
+          else if (day === 3) { item = '夜勤(長時間)'; count = attendance.nightShiftLongCount; amount = salary.nightLongPay; }
+          else if (day === 4) { item = '夜勤(短時間)'; count = attendance.nightShiftShortCount; amount = salary.nightShortPay; }
+          else if (day === 5) { item = '※夜間割増・残業割増を含む'; }
+          else if (day === 6) { item = '家族手当'; amount = salary.familyAllowance; }
+          else if (day === 7) { item = '有給休暇'; count = 0; amount = 0; }
+          else if (day === 8) { item = '残業手当'; count = 0; amount = 0; }
+          else if (day === 10) { item = '計'; amount = salary.grossPay; }
+          else if (day === 11) { item = '雇用保険料'; amount = -salary.employmentInsurance; }
+          else if (day === 12) { item = '健康保険料'; amount = -salary.healthInsurance; }
+          else if (day === 13) { item = '厚生年金'; amount = -salary.pension; }
+          else if (day === 14) { item = '所得税'; amount = -salary.incomeTax; }
+          else if (day === 15) { item = '住民税'; amount = -salary.residentTax; }
+          else if (day === 21) { item = '差引支給額'; amount = salary.netPay; }
           
-          csv += `${day},${weekday},${attendance_str},${night_str},,,,"${site_str}"${rightSide}\n`;
+          const dayStr = day <= lastDay ? day : '';
+          csv += `${dayStr},${weekday},${att},${night},,,,"${site}",${item},${count},${amount}\n`;
         }
         
         return csv;
@@ -707,30 +714,13 @@
         const app = document.getElementById('app');
         
         switch (this.currentView) {
-          case 'login':
-            app.innerHTML = this.renderLogin();
-            this.bindLoginEvents();
-            break;
-          case 'menu':
-            app.innerHTML = this.renderMenu();
-            this.bindMenuEvents();
-            break;
-          case 'employeeMaster':
-            app.innerHTML = this.renderEmployeeMaster();
-            this.bindEmployeeMasterEvents();
-            break;
-          case 'monthlySummary':
-            app.innerHTML = this.renderMonthlySummary();
-            this.bindMonthlySummaryEvents();
-            break;
-          case 'csvExport':
-            app.innerHTML = this.renderCSVExport();
-            this.bindCSVExportEvents();
-            break;
-          case 'employeeEdit':
-            app.innerHTML = this.renderEmployeeEdit();
-            this.bindEmployeeEditEvents();
-            break;
+          case 'login': app.innerHTML = this.renderLogin(); this.bindLoginEvents(); break;
+          case 'menu': app.innerHTML = this.renderMenu(); this.bindMenuEvents(); break;
+          case 'employeeMaster': app.innerHTML = this.renderEmployeeMaster(); this.bindEmployeeMasterEvents(); break;
+          case 'employeeEdit': app.innerHTML = this.renderEmployeeEdit(); this.bindEmployeeEditEvents(); break;
+          case 'monthlySummary': app.innerHTML = this.renderMonthlySummary(); this.bindMonthlySummaryEvents(); break;
+          case 'csvExport': app.innerHTML = this.renderCSVExport(); this.bindCSVExportEvents(); break;
+          case 'passwordChange': app.innerHTML = this.renderPasswordChange(); this.bindPasswordChangeEvents(); break;
         }
       },
       
@@ -751,9 +741,19 @@
       },
       
       bindLoginEvents() {
-        document.getElementById('loginBtn').addEventListener('click', async () => {
+        const login = async () => {
           const accessPw = document.getElementById('accessPassword').value;
           const adminPw = document.getElementById('adminPassword').value;
+          
+          // まずFirebaseからパスワード読み込み
+          try {
+            const settingsSnap = await db.collection('payrollData').doc('settings').get();
+            if (settingsSnap.exists) {
+              const settings = settingsSnap.data();
+              if (settings.accessPassword) ACCESS_PASSWORD = settings.accessPassword;
+              if (settings.adminPassword) ADMIN_PASSWORD = settings.adminPassword;
+            }
+          } catch (e) { console.log('設定読み込みスキップ'); }
           
           if (accessPw === ACCESS_PASSWORD && adminPw === ADMIN_PASSWORD) {
             this.isAuthenticated = true;
@@ -763,15 +763,11 @@
           } else {
             document.getElementById('loginError').classList.remove('hidden');
           }
-        });
+        };
         
-        // Enterキーでログイン
+        document.getElementById('loginBtn').addEventListener('click', login);
         document.querySelectorAll('input').forEach(input => {
-          input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-              document.getElementById('loginBtn').click();
-            }
-          });
+          input.addEventListener('keypress', (e) => { if (e.key === 'Enter') login(); });
         });
       },
       
@@ -786,17 +782,22 @@
             <div class="menu-card" data-view="employeeMaster">
               <div class="icon">👥</div>
               <h3>従業員マスタ</h3>
-              <p>日給・保険料等の登録・編集</p>
+              <p>日給・保険料の登録</p>
             </div>
             <div class="menu-card" data-view="monthlySummary">
               <div class="icon">📊</div>
               <h3>月次集計</h3>
-              <p>勤怠データの確認・給与計算</p>
+              <p>給与計算・確認</p>
             </div>
             <div class="menu-card" data-view="csvExport">
               <div class="icon">📄</div>
-              <h3>CSV出力</h3>
-              <p>Excel用データのエクスポート</p>
+              <h3>Excel出力</h3>
+              <p>給与明細Excelを出力</p>
+            </div>
+            <div class="menu-card" data-view="passwordChange">
+              <div class="icon">🔐</div>
+              <h3>パスワード変更</h3>
+              <p>アクセス制限の設定</p>
             </div>
           </div>
         `;
@@ -809,7 +810,6 @@
             this.render();
           });
         });
-        
         document.getElementById('logoutBtn').addEventListener('click', () => {
           this.isAuthenticated = false;
           this.currentView = 'login';
@@ -821,61 +821,41 @@
       renderEmployeeMaster() {
         const rows = this.employees.map(emp => {
           const m = this.employeeMaster[emp.id] || {};
+          const nightLong = m.isMonthlySalary ? '-' : Math.floor((m.dailyWage || 0) * (m.nightLongMultiplier || 1.25)).toLocaleString();
+          const nightShort = m.isMonthlySalary ? '-' : ((m.dailyWage || 0) + (m.nightShortBonus || 2500)).toLocaleString();
           return `
             <tr>
-              <td>${emp.name}</td>
-              <td>${m.dailyWage?.toLocaleString() || '-'}</td>
-              <td>${m.nightWageLong?.toLocaleString() || '-'}</td>
-              <td>${m.healthInsurance?.toLocaleString() || '-'}</td>
-              <td>${m.pension?.toLocaleString() || '-'}</td>
-              <td>${m.residentTax?.toLocaleString() || '-'}</td>
-              <td>
-                <button class="btn btn-primary" data-id="${emp.id}" style="padding: 5px 10px; font-size: 12px;">編集</button>
-              </td>
+              <td>${emp.name}${m.isMonthlySalary ? '(月給)' : ''}</td>
+              <td class="amount">${m.dailyWage?.toLocaleString() || '-'}</td>
+              <td class="amount">${nightLong}</td>
+              <td class="amount">${nightShort}</td>
+              <td class="amount">${m.healthInsurance?.toLocaleString() || '-'}</td>
+              <td class="amount">${m.pension?.toLocaleString() || '-'}</td>
+              <td><button class="btn btn-primary" data-id="${emp.id}" style="padding:5px 10px;font-size:12px;">編集</button></td>
             </tr>
           `;
         }).join('');
         
         return `
           <div class="header">
-            <div>
-              <button class="back-btn" id="backBtn">← 戻る</button>
-              <span style="font-size: 1.3em; font-weight: 600;">👥 従業員マスタ</span>
-            </div>
+            <div><button class="back-btn" id="backBtn">← 戻る</button><span style="font-size:1.2em;font-weight:600;">👥 従業員マスタ</span></div>
           </div>
+          <p style="margin-bottom:15px;color:rgba(255,255,255,0.7);font-size:13px;">💡 夜勤単価は日給から自動計算：長時間=日給×1.25、短時間=日給+2500</p>
           <div class="table-container">
             <table>
               <thead>
-                <tr>
-                  <th>従業員名</th>
-                  <th>日給</th>
-                  <th>夜勤（長）</th>
-                  <th>健康保険料</th>
-                  <th>厚生年金</th>
-                  <th>住民税</th>
-                  <th>操作</th>
-                </tr>
+                <tr><th>従業員名</th><th>日給</th><th>夜勤(長)</th><th>夜勤(短)</th><th>健康保険</th><th>厚生年金</th><th>操作</th></tr>
               </thead>
-              <tbody>
-                ${rows}
-              </tbody>
+              <tbody>${rows}</tbody>
             </table>
           </div>
         `;
       },
       
       bindEmployeeMasterEvents() {
-        document.getElementById('backBtn').addEventListener('click', () => {
-          this.currentView = 'menu';
-          this.render();
-        });
-        
+        document.getElementById('backBtn').addEventListener('click', () => { this.currentView = 'menu'; this.render(); });
         document.querySelectorAll('[data-id]').forEach(btn => {
-          btn.addEventListener('click', () => {
-            this.editingEmployeeId = btn.dataset.id;
-            this.currentView = 'employeeEdit';
-            this.render();
-          });
+          btn.addEventListener('click', () => { this.editingEmployeeId = btn.dataset.id; this.currentView = 'employeeEdit'; this.render(); });
         });
       },
       
@@ -886,93 +866,69 @@
         
         return `
           <div class="header">
-            <div>
-              <button class="back-btn" id="backBtn">← 戻る</button>
-              <span style="font-size: 1.3em; font-weight: 600;">✏️ ${emp?.name} の給与設定</span>
-            </div>
+            <div><button class="back-btn" id="backBtn">← 戻る</button><span style="font-size:1.2em;font-weight:600;">✏️ ${emp?.name}</span></div>
             <button class="btn btn-success" id="saveBtn">💾 保存</button>
           </div>
           
           <div class="card">
-            <div class="card-header">
-              <h3>💵 支給項目</h3>
-            </div>
+            <div class="card-header"><h3>💵 支給項目</h3></div>
             <div class="form-row">
               <div class="form-group">
-                <label>日給（円）</label>
+                <label>日給（または月給）</label>
                 <input type="number" id="dailyWage" value="${m.dailyWage || ''}">
               </div>
               <div class="form-group">
-                <label>夜勤手当（長時間）</label>
-                <input type="number" id="nightWageLong" value="${m.nightWageLong || ''}">
-              </div>
-              <div class="form-group">
-                <label>夜勤手当（短時間）</label>
-                <input type="number" id="nightWageShort" value="${m.nightWageShort || ''}">
+                <label>月給制</label>
+                <select id="isMonthlySalary">
+                  <option value="false" ${!m.isMonthlySalary ? 'selected' : ''}>日給制</option>
+                  <option value="true" ${m.isMonthlySalary ? 'selected' : ''}>月給制</option>
+                </select>
               </div>
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label>家族手当（円）</label>
-                <input type="number" id="familyAllowance" value="${m.familyAllowance || ''}">
+                <label>夜勤（長時間）倍率</label>
+                <input type="number" id="nightLongMultiplier" value="${m.nightLongMultiplier || 1.25}" step="0.01">
+                <div class="formula-note">日給 × この倍率 = 夜勤長単価</div>
               </div>
               <div class="form-group">
-                <label>有給休暇単価（円）</label>
-                <input type="number" id="paidLeaveWage" value="${m.paidLeaveWage || ''}">
+                <label>夜勤（短時間）加算額</label>
+                <input type="number" id="nightShortBonus" value="${m.nightShortBonus || 2500}">
+                <div class="formula-note">日給 + この金額 = 夜勤短単価</div>
+              </div>
+              <div class="form-group">
+                <label>家族手当</label>
+                <input type="number" id="familyAllowance" value="${m.familyAllowance || ''}">
               </div>
             </div>
           </div>
           
           <div class="card">
-            <div class="card-header">
-              <h3>📉 控除項目</h3>
+            <div class="card-header"><h3>📉 控除項目</h3></div>
+            <div class="form-row">
+              <div class="form-group"><label>雇用保険料</label><input type="number" id="employmentInsurance" value="${m.employmentInsurance || ''}"></div>
+              <div class="form-group"><label>健康保険料</label><input type="number" id="healthInsurance" value="${m.healthInsurance || ''}"></div>
+              <div class="form-group"><label>介護保険料</label><input type="number" id="nursingInsurance" value="${m.nursingInsurance || ''}"></div>
             </div>
             <div class="form-row">
-              <div class="form-group">
-                <label>雇用保険料（円）</label>
-                <input type="number" id="employmentInsurance" value="${m.employmentInsurance || ''}">
-              </div>
-              <div class="form-group">
-                <label>健康保険料（円）</label>
-                <input type="number" id="healthInsurance" value="${m.healthInsurance || ''}">
-              </div>
-              <div class="form-group">
-                <label>介護保険料（円）</label>
-                <input type="number" id="nursingInsurance" value="${m.nursingInsurance || ''}">
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>厚生年金（円）</label>
-                <input type="number" id="pension" value="${m.pension || ''}">
-              </div>
-              <div class="form-group">
-                <label>所得税（円）</label>
-                <input type="number" id="incomeTax" value="${m.incomeTax || ''}">
-              </div>
-              <div class="form-group">
-                <label>住民税（円）</label>
-                <input type="number" id="residentTax" value="${m.residentTax || ''}">
-              </div>
+              <div class="form-group"><label>厚生年金</label><input type="number" id="pension" value="${m.pension || ''}"></div>
+              <div class="form-group"><label>所得税</label><input type="number" id="incomeTax" value="${m.incomeTax || ''}"></div>
+              <div class="form-group"><label>住民税</label><input type="number" id="residentTax" value="${m.residentTax || ''}"></div>
             </div>
           </div>
         `;
       },
       
       bindEmployeeEditEvents() {
-        document.getElementById('backBtn').addEventListener('click', () => {
-          this.currentView = 'employeeMaster';
-          this.render();
-        });
-        
+        document.getElementById('backBtn').addEventListener('click', () => { this.currentView = 'employeeMaster'; this.render(); });
         document.getElementById('saveBtn').addEventListener('click', async () => {
           const id = this.editingEmployeeId;
           this.employeeMaster[id] = {
             dailyWage: parseInt(document.getElementById('dailyWage').value) || 0,
-            nightWageLong: parseInt(document.getElementById('nightWageLong').value) || 0,
-            nightWageShort: parseInt(document.getElementById('nightWageShort').value) || 0,
+            isMonthlySalary: document.getElementById('isMonthlySalary').value === 'true',
+            nightLongMultiplier: parseFloat(document.getElementById('nightLongMultiplier').value) || 1.25,
+            nightShortBonus: parseInt(document.getElementById('nightShortBonus').value) || 2500,
             familyAllowance: parseInt(document.getElementById('familyAllowance').value) || 0,
-            paidLeaveWage: parseInt(document.getElementById('paidLeaveWage').value) || 0,
             employmentInsurance: parseInt(document.getElementById('employmentInsurance').value) || 0,
             healthInsurance: parseInt(document.getElementById('healthInsurance').value) || 0,
             nursingInsurance: parseInt(document.getElementById('nursingInsurance').value) || 0,
@@ -980,7 +936,6 @@
             incomeTax: parseInt(document.getElementById('incomeTax').value) || 0,
             residentTax: parseInt(document.getElementById('residentTax').value) || 0,
           };
-          
           await this.saveEmployeeMaster();
           alert('保存しました');
           this.currentView = 'employeeMaster';
@@ -991,71 +946,41 @@
       // 月次集計画面
       renderMonthlySummary() {
         const rows = this.employees.map(emp => {
-          const attendance = this.getMonthlyAttendance(emp.id, this.selectedYear, this.selectedMonth);
           const salary = this.calculateSalary(emp.id, this.selectedYear, this.selectedMonth);
-          
+          const a = salary.attendance;
           return `
             <tr>
               <td>${emp.name}</td>
-              <td>${attendance.dayShiftCount}</td>
-              <td>${attendance.nightShiftLongCount}</td>
-              <td>${attendance.nightShiftShortCount}</td>
-              <td>${salary.grossPay.toLocaleString()}</td>
-              <td>${salary.totalDeduction.toLocaleString()}</td>
-              <td style="font-weight: 700; color: #ffd700;">${salary.netPay.toLocaleString()}</td>
+              <td class="amount">${salary.isMonthlySalary ? '-' : a.dayShiftCount}</td>
+              <td class="amount">${salary.isMonthlySalary ? '-' : a.nightShiftLongCount}</td>
+              <td class="amount">${salary.isMonthlySalary ? '-' : a.nightShiftShortCount}</td>
+              <td class="amount">${salary.grossPay.toLocaleString()}</td>
+              <td class="amount amount-negative">${salary.totalDeduction.toLocaleString()}</td>
+              <td class="amount amount-total">${salary.netPay.toLocaleString()}</td>
             </tr>
           `;
         }).join('');
         
         return `
           <div class="header">
-            <div>
-              <button class="back-btn" id="backBtn">← 戻る</button>
-              <span style="font-size: 1.3em; font-weight: 600;">📊 月次集計</span>
-            </div>
+            <div><button class="back-btn" id="backBtn">← 戻る</button><span style="font-size:1.2em;font-weight:600;">📊 月次集計</span></div>
           </div>
-          
           <div class="month-selector">
-            <select id="yearSelect">
-              ${[2024, 2025, 2026, 2027].map(y => 
-                `<option value="${y}" ${y === this.selectedYear ? 'selected' : ''}>${y}年</option>`
-              ).join('')}
-            </select>
-            <select id="monthSelect">
-              ${[1,2,3,4,5,6,7,8,9,10,11,12].map(m => 
-                `<option value="${m}" ${m === this.selectedMonth ? 'selected' : ''}>${m}月</option>`
-              ).join('')}
-            </select>
+            <select id="yearSelect">${[2024,2025,2026,2027].map(y=>`<option value="${y}" ${y===this.selectedYear?'selected':''}>${y}年</option>`).join('')}</select>
+            <select id="monthSelect">${[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<option value="${m}" ${m===this.selectedMonth?'selected':''}>${m}月</option>`).join('')}</select>
             <button class="btn btn-primary" id="refreshBtn">更新</button>
           </div>
-          
           <div class="table-container">
             <table>
-              <thead>
-                <tr>
-                  <th>従業員名</th>
-                  <th>日勤</th>
-                  <th>夜勤(長)</th>
-                  <th>夜勤(短)</th>
-                  <th>総支給額</th>
-                  <th>控除計</th>
-                  <th>差引支給額</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${rows}
-              </tbody>
+              <thead><tr><th>従業員名</th><th>日勤</th><th>夜勤長</th><th>夜勤短</th><th>総支給</th><th>控除計</th><th>差引支給</th></tr></thead>
+              <tbody>${rows}</tbody>
             </table>
           </div>
         `;
       },
       
       bindMonthlySummaryEvents() {
-        document.getElementById('backBtn').addEventListener('click', () => {
-          this.currentView = 'menu';
-          this.render();
-        });
-        
+        document.getElementById('backBtn').addEventListener('click', () => { this.currentView = 'menu'; this.render(); });
         document.getElementById('refreshBtn').addEventListener('click', () => {
           this.selectedYear = parseInt(document.getElementById('yearSelect').value);
           this.selectedMonth = parseInt(document.getElementById('monthSelect').value);
@@ -1063,119 +988,232 @@
         });
       },
       
-      // CSV出力画面
+      // Excel出力画面
       renderCSVExport() {
-        const empOptions = this.employees.map(emp => 
-          `<option value="${emp.id}">${emp.name}</option>`
-        ).join('');
-        
+        const empOptions = this.employees.map(emp => `<option value="${emp.id}">${emp.name}</option>`).join('');
         return `
           <div class="header">
-            <div>
-              <button class="back-btn" id="backBtn">← 戻る</button>
-              <span style="font-size: 1.3em; font-weight: 600;">📄 CSV出力</span>
-            </div>
+            <div><button class="back-btn" id="backBtn">← 戻る</button><span style="font-size:1.2em;font-weight:600;">📄 Excel出力</span></div>
           </div>
           
           <div class="card">
+            <div class="card-header"><h3>📁 STEP1: テンプレートを選択</h3></div>
+            <p style="margin-bottom:15px;color:rgba(255,255,255,0.7);font-size:13px;">
+              元の給与明細Excelファイルを選択してください。<br>
+              ※ファイルはあなたのPC内でのみ処理され、サーバーには送信されません。
+            </p>
+            <input type="file" id="templateFile" accept=".xlsx,.xls" style="display:none;">
+            <button class="btn btn-primary" id="selectTemplateBtn">📂 Excelテンプレートを選択</button>
+            <span id="templateFileName" style="margin-left:15px;color:#ffd700;"></span>
+          </div>
+          
+          <div class="card">
+            <div class="card-header"><h3>📅 STEP2: 対象月を選択</h3></div>
             <div class="form-row">
-              <div class="form-group">
-                <label>従業員</label>
-                <select id="employeeSelect">
-                  <option value="">-- 選択 --</option>
-                  ${empOptions}
-                </select>
-              </div>
-              <div class="form-group">
-                <label>年</label>
-                <select id="yearSelect">
-                  ${[2024, 2025, 2026, 2027].map(y => 
-                    `<option value="${y}" ${y === this.selectedYear ? 'selected' : ''}>${y}年</option>`
-                  ).join('')}
-                </select>
-              </div>
-              <div class="form-group">
-                <label>月</label>
-                <select id="monthSelect">
-                  ${[1,2,3,4,5,6,7,8,9,10,11,12].map(m => 
-                    `<option value="${m}" ${m === this.selectedMonth ? 'selected' : ''}>${m}月</option>`
-                  ).join('')}
-                </select>
-              </div>
-            </div>
-            <div style="display: flex; gap: 10px; margin-top: 15px;">
-              <button class="btn btn-primary" id="previewBtn">プレビュー</button>
-              <button class="btn btn-success" id="downloadBtn">CSVダウンロード</button>
-              <button class="btn btn-secondary" id="copyBtn">クリップボードにコピー</button>
+              <div class="form-group"><label>年</label><select id="yearSelect">${[2024,2025,2026,2027,2028].map(y=>`<option value="${y}" ${y===this.selectedYear?'selected':''}>${y}年</option>`).join('')}</select></div>
+              <div class="form-group"><label>月</label><select id="monthSelect">${[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<option value="${m}" ${m===this.selectedMonth?'selected':''}>${m}月</option>`).join('')}</select></div>
             </div>
           </div>
           
           <div class="card">
-            <div class="card-header">
-              <h3>プレビュー</h3>
+            <div class="card-header"><h3>📥 STEP3: Excel出力</h3></div>
+            <p style="margin-bottom:15px;color:rgba(255,255,255,0.7);font-size:13px;">
+              テンプレートに勤怠データを埋め込んでダウンロードします。<br>
+              数式・セルサイズ・書式は全てそのまま維持されます。
+            </p>
+            <button class="btn btn-success" id="downloadExcelBtn" style="font-size:16px;padding:15px 30px;">📥 Excelファイルをダウンロード</button>
+          </div>
+          
+          <div class="card">
+            <div class="card-header"><h3>📊 勤怠データプレビュー</h3></div>
+            <div class="form-group" style="max-width:300px;">
+              <label>従業員を選択してプレビュー</label>
+              <select id="previewEmployeeSelect">
+                <option value="">-- 選択 --</option>
+                ${empOptions}
+              </select>
             </div>
-            <div class="csv-preview" id="csvPreview">従業員を選択してプレビューボタンを押してください</div>
+            <div class="csv-preview" id="csvPreview">従業員を選択すると勤怠データが表示されます</div>
           </div>
         `;
       },
       
       bindCSVExportEvents() {
-        document.getElementById('backBtn').addEventListener('click', () => {
-          this.currentView = 'menu';
-          this.render();
+        document.getElementById('backBtn').addEventListener('click', () => { this.currentView = 'menu'; this.render(); });
+        
+        // テンプレート選択
+        const templateFileInput = document.getElementById('templateFile');
+        document.getElementById('selectTemplateBtn').addEventListener('click', () => {
+          templateFileInput.click();
         });
         
-        const getParams = () => ({
-          empId: document.getElementById('employeeSelect').value,
-          year: parseInt(document.getElementById('yearSelect').value),
-          month: parseInt(document.getElementById('monthSelect').value)
+        templateFileInput.addEventListener('change', (e) => {
+          if (e.target.files[0]) {
+            document.getElementById('templateFileName').textContent = '✅ ' + e.target.files[0].name;
+            this.templateFile = e.target.files[0];
+          }
         });
         
-        document.getElementById('previewBtn').addEventListener('click', () => {
-          const { empId, year, month } = getParams();
+        // プレビュー
+        document.getElementById('previewEmployeeSelect').addEventListener('change', (e) => {
+          const empId = e.target.value;
           if (!empId) {
-            alert('従業員を選択してください');
+            document.getElementById('csvPreview').textContent = '従業員を選択すると勤怠データが表示されます';
             return;
           }
-          const csv = this.generateCSV(empId, year, month);
-          document.getElementById('csvPreview').textContent = csv;
-        });
-        
-        document.getElementById('downloadBtn').addEventListener('click', () => {
-          const { empId, year, month } = getParams();
-          if (!empId) {
-            alert('従業員を選択してください');
-            return;
-          }
+          const year = parseInt(document.getElementById('yearSelect').value);
+          const month = parseInt(document.getElementById('monthSelect').value);
           const emp = this.employees.find(e => e.id === empId);
-          const csv = this.generateCSV(empId, year, month);
+          const attendance = this.getMonthlyAttendance(empId, year, month);
           
-          // BOM付きUTF-8でダウンロード
-          const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-          const blob = new Blob([bom, csv], { type: 'text/csv;charset=utf-8' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `給与明細_${emp.name}_${year}年${month}月.csv`;
-          a.click();
-          URL.revokeObjectURL(url);
+          let preview = `【${emp.name}】${year}年${month}月の勤怠データ\n\n`;
+          preview += `日勤: ${attendance.dayShiftCount}日\n`;
+          preview += `夜勤(長): ${attendance.nightShiftLongCount}日\n`;
+          preview += `夜勤(短): ${attendance.nightShiftShortCount}日\n\n`;
+          preview += `--- 日別データ ---\n`;
+          
+          const lastDay = new Date(year, month, 0).getDate();
+          const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+          for (let day = 1; day <= lastDay; day++) {
+            const date = new Date(year, month - 1, day);
+            const weekday = weekdays[date.getDay()];
+            const d = attendance.dailyData[day];
+            const att = d?.dayShift ? '出' : '休';
+            const night = d?.nightShift ? '出' : '';
+            const site = d?.site || d?.nightSite || '';
+            preview += `${day}日(${weekday}) ${att} ${night} ${site}\n`;
+          }
+          
+          document.getElementById('csvPreview').textContent = preview;
         });
         
-        document.getElementById('copyBtn').addEventListener('click', () => {
-          const { empId, year, month } = getParams();
-          if (!empId) {
-            alert('従業員を選択してください');
+        // Excel出力
+        document.getElementById('downloadExcelBtn').addEventListener('click', async () => {
+          if (!this.templateFile) {
+            alert('テンプレートファイルを選択してください');
             return;
           }
-          const csv = this.generateCSV(empId, year, month);
-          navigator.clipboard.writeText(csv).then(() => {
-            alert('クリップボードにコピーしました！\nExcelに貼り付けてください。');
-          });
+          
+          const year = parseInt(document.getElementById('yearSelect').value);
+          const month = parseInt(document.getElementById('monthSelect').value);
+          
+          try {
+            // テンプレート読み込み
+            const arrayBuffer = await this.templateFile.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+            
+            // 各シートに勤怠データを埋め込む
+            const lastDay = new Date(year, month, 0).getDate();
+            const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+            
+            for (const sheetName of workbook.SheetNames) {
+              // 「元ネタ」シートはスキップ
+              if (sheetName.includes('元ネタ')) continue;
+              
+              // シート名から従業員を特定
+              const emp = this.employees.find(e => sheetName.includes(e.name.replace(/\s/g, '')));
+              if (!emp) continue;
+              
+              const sheet = workbook.Sheets[sheetName];
+              const attendance = this.getMonthlyAttendance(emp.id, year, month);
+              
+              // タイトル更新（令和○年○月分）
+              const reiwa = year - 2018;
+              sheet['A1'] = { t: 's', v: `令和${reiwa}年${month}月分給与明細書` };
+              
+              // 各日の勤怠データを埋め込む
+              for (let day = 1; day <= lastDay; day++) {
+                const row = day + 2; // 1日 = 行3
+                const d = attendance.dailyData[day];
+                const date = new Date(year, month - 1, day);
+                
+                // A列: 日付
+                sheet[`A${row}`] = { t: 'n', v: date.getTime() / 86400000 + 25569, z: 'm/d' };
+                // B列: 曜日
+                sheet[`B${row}`] = { t: 's', v: weekdays[date.getDay()] };
+                // C列: 出欠
+                if (d?.dayShift) {
+                  sheet[`C${row}`] = { t: 's', v: '出' };
+                } else if (d?.nightShift && !d?.dayShift) {
+                  // 夜勤のみの日はC列は空
+                  sheet[`C${row}`] = { t: 's', v: '' };
+                } else {
+                  sheet[`C${row}`] = { t: 's', v: '休' };
+                }
+                // D列: 夜勤
+                sheet[`D${row}`] = { t: 's', v: d?.nightShift ? '出' : '' };
+                // H列: 現場名
+                if (d?.site && d?.nightSite && d.site !== d.nightSite) {
+                  sheet[`H${row}`] = { t: 's', v: `日勤：${d.site}\n夜勤：${d.nightSite}` };
+                } else {
+                  sheet[`H${row}`] = { t: 's', v: d?.site || d?.nightSite || '' };
+                }
+              }
+              
+              // 月末以降の日をクリア（2月は28日までなど）
+              for (let day = lastDay + 1; day <= 31; day++) {
+                const row = day + 2;
+                sheet[`A${row}`] = { t: 's', v: '' };
+                sheet[`B${row}`] = { t: 's', v: '' };
+                sheet[`C${row}`] = { t: 's', v: '' };
+                sheet[`D${row}`] = { t: 's', v: '' };
+                sheet[`H${row}`] = { t: 's', v: '' };
+              }
+            }
+            
+            // ダウンロード
+            const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `給与明細_${year}年${month}月.xlsx`;
+            a.click();
+            
+            alert('Excelファイルをダウンロードしました！');
+          } catch (error) {
+            console.error('Excel出力エラー:', error);
+            alert('エラーが発生しました: ' + error.message);
+          }
+        });
+      },
+      
+      // パスワード変更画面
+      renderPasswordChange() {
+        return `
+          <div class="header">
+            <div><button class="back-btn" id="backBtn">← 戻る</button><span style="font-size:1.2em;font-weight:600;">🔐 パスワード変更</span></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>新しいパスワードを設定</h3></div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>アクセスパスワード</label>
+                <input type="text" id="newAccessPassword" value="${ACCESS_PASSWORD}">
+                <div class="formula-note">全員共通のパスワード</div>
+              </div>
+              <div class="form-group">
+                <label>管理者パスワード</label>
+                <input type="text" id="newAdminPassword" value="${ADMIN_PASSWORD}">
+                <div class="formula-note">給与計算アプリ用</div>
+              </div>
+            </div>
+            <button class="btn btn-warning" id="savePasswordBtn" style="margin-top:15px;">🔐 パスワードを変更</button>
+          </div>
+        `;
+      },
+      
+      bindPasswordChangeEvents() {
+        document.getElementById('backBtn').addEventListener('click', () => { this.currentView = 'menu'; this.render(); });
+        document.getElementById('savePasswordBtn').addEventListener('click', async () => {
+          const accessPw = document.getElementById('newAccessPassword').value.trim();
+          const adminPw = document.getElementById('newAdminPassword').value.trim();
+          if (!accessPw || !adminPw) { alert('パスワードを入力してください'); return; }
+          if (!confirm(`パスワードを変更しますか？\n\nアクセス: ${accessPw}\n管理者: ${adminPw}`)) return;
+          await this.savePasswords(accessPw, adminPw);
         });
       }
     };
     
-    // アプリ開始
     App.init();
   </script>
 </body>
