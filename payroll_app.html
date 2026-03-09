@@ -352,6 +352,120 @@
     const ACCESS_PASSWORD = 'Tokyo4555';
     const ADMIN_PASSWORD = 'admin';
     
+    // Excelから読み取った初期データ（従業員名で紐づけ）
+    const INITIAL_PAYROLL_DATA = {
+      '青山海斗': {
+        dailyWage: 18000,
+        nightWageLong: 22500,
+        nightWageShort: 17500,
+        familyAllowance: 5000,
+        employmentInsurance: 3104,
+        healthInsurance: 23288,
+        nursingInsurance: 0,
+        pension: 43005,
+        incomeTax: 11690,
+        residentTax: 19900
+      },
+      '月精晃大': {
+        dailyWage: 17000,
+        nightWageLong: 0,
+        nightWageShort: 19500,
+        familyAllowance: 0,
+        employmentInsurance: 2750,
+        healthInsurance: 18829,
+        nursingInsurance: 0,
+        pension: 34770,
+        incomeTax: 10260,
+        residentTax: 0
+      },
+      '古関弘志': {
+        dailyWage: 18500,
+        nightWageLong: 21000,
+        nightWageShort: 0,
+        familyAllowance: 5000,
+        employmentInsurance: 3055,
+        healthInsurance: 28388,
+        nursingInsurance: 4554,
+        pension: 52431,
+        incomeTax: 10960,
+        residentTax: 23000
+      },
+      '椙山圭': {
+        dailyWage: 880000, // 月給制
+        nightWageLong: 0,
+        nightWageShort: 0,
+        familyAllowance: 0,
+        employmentInsurance: 0,
+        healthInsurance: 43604,
+        nursingInsurance: 6996,
+        pension: 59475,
+        incomeTax: 71321,
+        residentTax: 46100,
+        isMonthlySalary: true
+      },
+      '松川敦': {
+        dailyWage: 19000,
+        nightWageLong: 0,
+        nightWageShort: 0,
+        familyAllowance: 0,
+        employmentInsurance: 2964,
+        healthInsurance: 24775,
+        nursingInsurance: 3975,
+        pension: 45750,
+        incomeTax: 13940,
+        residentTax: 23400
+      },
+      '松川大輔': {
+        dailyWage: 20000,
+        nightWageLong: 0,
+        nightWageShort: 22500,
+        familyAllowance: 30000,
+        employmentInsurance: 3332,
+        healthInsurance: 29235,
+        nursingInsurance: 4690,
+        pension: 53985,
+        incomeTax: 14140,
+        residentTax: 24000
+      },
+      '渡部直人': {
+        dailyWage: 16000,
+        nightWageLong: 0,
+        nightWageShort: 18500,
+        familyAllowance: 0,
+        employmentInsurance: 2721,
+        healthInsurance: 17838,
+        nursingInsurance: 0,
+        pension: 32940,
+        incomeTax: 12960,
+        residentTax: 0
+      },
+      '寺本亮祐': {
+        dailyWage: 670000, // 月給制
+        nightWageLong: 0,
+        nightWageShort: 0,
+        familyAllowance: 0,
+        employmentInsurance: 0,
+        healthInsurance: 33694,
+        nursingInsurance: 0,
+        pension: 59475,
+        incomeTax: 34520,
+        residentTax: 0,
+        isMonthlySalary: true
+      },
+      '徳永蓮汰': {
+        dailyWage: 15000,
+        nightWageLong: 0,
+        nightWageShort: 17500,
+        familyAllowance: 30000,
+        employmentInsurance: 0,
+        healthInsurance: 16847,
+        nursingInsurance: 0,
+        pension: 31110,
+        incomeTax: 0,
+        residentTax: 0
+      }
+    };
+    
     // アプリ状態
     const App = {
       currentView: 'login',
@@ -388,6 +502,26 @@
           const masterSnap = await db.collection('payrollData').doc('employeeMaster').get();
           if (masterSnap.exists) {
             this.employeeMaster = masterSnap.data() || {};
+          }
+          
+          // 初期データの自動適用（まだ登録されていない従業員のみ）
+          let needsSave = false;
+          this.employees.forEach(emp => {
+            if (!this.employeeMaster[emp.id]) {
+              // 名前で初期データを探す
+              const initialData = INITIAL_PAYROLL_DATA[emp.name];
+              if (initialData) {
+                this.employeeMaster[emp.id] = { ...initialData };
+                needsSave = true;
+                console.log(`初期データ適用: ${emp.name}`);
+              }
+            }
+          });
+          
+          // 初期データを適用した場合は保存
+          if (needsSave) {
+            await this.saveEmployeeMaster();
+            console.log('初期データを保存しました');
           }
           
           console.log('データ読み込み完了:', {
