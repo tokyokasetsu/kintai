@@ -468,17 +468,14 @@
       // Firebaseから勤怠データ読み込み
       async loadKintaiData() {
         try {
-          // 従業員データ
-          const empSnap = await db.collection('kintaiData').doc('employees').get();
-          if (empSnap.exists) {
-            this.employees = empSnap.data().list || [];
+          // 勤怠アプリのメインデータ（全部mainに入ってる）
+          const mainSnap = await db.collection('kintaiData').doc('main').get();
+          if (mainSnap.exists) {
+            const data = mainSnap.data();
+            this.employees = data.employees || [];
             this.employees = this.employees.filter(e => !e.isPrivate);
-          }
-          
-          // 勤怠記録
-          const recSnap = await db.collection('kintaiData').doc('records').get();
-          if (recSnap.exists) {
-            this.records = recSnap.data().list || [];
+            this.records = data.records || [];
+            console.log('従業員数:', this.employees.length, '勤怠記録数:', this.records.length);
           }
           
           // 従業員マスタ（給与情報）
