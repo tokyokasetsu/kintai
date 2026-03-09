@@ -3576,7 +3576,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.8.6';
+    const APP_VERSION = 'v2.8.7';
     const APP_UPDATE_DATE = '2026/03/07';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -4696,14 +4696,11 @@
           
           let statusHtml = '';
           if (dayRecords.length > 0) {
-            // 日勤・夜勤をカウント
-            dayRecords.forEach(r => {
-              if (r.shiftType === 'night') {
-                nightShiftDays++;
-              } else {
-                dayShiftDays++;
-              }
-            });
+            // その日に日勤・夜勤があるかチェック（日数カウント用）
+            const hasDayShift = dayRecords.some(r => r.shiftType !== 'night');
+            const hasNightShift = dayRecords.some(r => r.shiftType === 'night');
+            if (hasDayShift) dayShiftDays++;
+            if (hasNightShift) nightShiftDays++;
             
             dayRecords.forEach(r => {
               const isNight = r.shiftType === 'night';
@@ -5564,14 +5561,11 @@
           
           let statusHtml = '';
           if (dayRecords.length > 0) {
-            // 日勤・夜勤をカウント
-            dayRecords.forEach(r => {
-              if (r.shiftType === 'night') {
-                nightShiftDays++;
-              } else {
-                dayShiftDays++;
-              }
-            });
+            // その日に日勤・夜勤があるかチェック（日数カウント用）
+            const hasDayShift = dayRecords.some(r => r.shiftType !== 'night');
+            const hasNightShift = dayRecords.some(r => r.shiftType === 'night');
+            if (hasDayShift) dayShiftDays++;
+            if (hasNightShift) nightShiftDays++;
             
             dayRecords.forEach(r => {
               const isNight = r.shiftType === 'night';
