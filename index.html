@@ -3576,7 +3576,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.8.7';
+    const APP_VERSION = 'v2.8.9';
     const APP_UPDATE_DATE = '2026/03/07';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -5569,7 +5569,7 @@
             
             dayRecords.forEach(r => {
               const isNight = r.shiftType === 'night';
-              const shiftIcon = isNight ? '🌙' : '☀️';
+              const shiftLabel = isNight ? '<span style="color: #ef4444; font-weight: 600;">夜勤</span>' : '<span style="color: #3b82f6;">日勤</span>';
               const timeStr = App.formatTime(r.clockInTime) + '〜' + (r.clockOutTime ? App.formatTime(r.clockOutTime) : '勤務中');
               let hoursStr = '';
               if (r.workHours) {
@@ -5578,11 +5578,10 @@
                 const actualMinutes = Math.max(0, totalMinutes - breakMinutes);
                 hoursStr = `（実働 ${formatMinutes(actualMinutes)}）`;
               }
-              const overtimeStr = r.overtimeHours ? `<span style="color: #f59e0b; font-weight: 600;">【残業 ${r.overtimeHours}h】</span>` : '';
               statusHtml += `
                 <div class="day-record emp-hist-record" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px;">
                   <div style="flex: 1;">
-                    <div class="day-site">${shiftIcon} ${r.jobSiteName} ${overtimeStr}</div>
+                    <div class="day-site">${shiftLabel} / ${r.jobSiteName}</div>
                     <div class="day-time">${timeStr}${hoursStr}</div>
                   </div>
                   <button class="edit-record-btn" data-record-id="${r.id}" style="padding: 6px 12px; background: #3b82f6; color: #fff; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; white-space: nowrap;">編集</button>
