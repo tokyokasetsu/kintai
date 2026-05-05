@@ -3465,6 +3465,74 @@
         }
       },
       
+      // ===========================================================================
+      // 【v3.0.0】deleteOneRecord - 単一レコードを確実に削除
+      //   問題: saveAllToFirebase はマージ方式なので、ローカルから削除しても
+      //         「リモートに残ってる古い版」がマージで復活してしまう。
+      //   解決: 削除対象のidを明示的に伝え、トランザクションで物理的に除外する。
+      //         安全チェック: 1件削除のはずが多数消えた場合は中止。
+      // ===========================================================================
+      deleteOneRecord: async function(recordId) {
+        if (!recordId) {
+          console.error('[Firebase v3] deleteOneRecord: recordId が空');
+          return false;
+        }
+        if (typeof db === 'undefined' || !db) {
+          console.warn('[Firebase v3] DB未接続、LocalStorageのみで削除');
+          App.records = App.records.filter(r => r.id !== recordId);
+          Storage.set('records', App.records);
+          return true;
+        }
+        
+        try {
+          const docRef = db.collection('kintaiData').doc('main');
+          
+          const result = await db.runTransaction(async function(tx) {
+            const snap = await tx.get(docRef);
+            const remote = snap.exists ? snap.data() : {};
+            const remoteRecords = Array.isArray(remote.records) ? remote.records : [];
+            
+            const finalRecords = remoteRecords.filter(r => r && r.id !== recordId);
+            
+            // 安全チェック: 1件削除のはずが2件以上消えていたら異常
+            if (finalRecords.length < remoteRecords.length - 1) {
+              const msg = '[Firebase v3] 保護機能: 削除予定1件のはずが' + (remoteRecords.length - finalRecords.length) + '件減少。中止';
+              console.error(msg);
+              throw new Error(msg);
+            }
+            
+            tx.update(docRef, {
+              records: finalRecords,
+              lastUpdated: new Date().toISOString()
+            });
+            
+            App.records = finalRecords;
+            App._firebaseRecordsCount = finalRecords.length;
+            
+            // 【v3.0.0】LocalStorageも更新（リロード時の整合性）
+            try { Storage.set('records', App.records); } catch (_) {}
+            
+            try {
+              App._recordsSnapshot = {};
+              for (const r of finalRecords) {
+                if (r && r.id) App._recordsSnapshot[r.id] = JSON.parse(JSON.stringify(r));
+              }
+            } catch (_) {}
+            
+            console.log('[Firebase v3] deleteOneRecord 完了 id=' + recordId + ' before=' + remoteRecords.length + ' after=' + finalRecords.length);
+            return true;
+          });
+          
+          return result;
+        } catch (e) {
+          console.error('[Firebase v3] deleteOneRecord 失敗:', e);
+          try {
+            alert('削除に失敗しました：\n' + (e.message || e) + '\n\n通信状態を確認して、もう一度お試しください。');
+          } catch (_) {}
+          return false;
+        }
+      },
+      
       // Firebaseから読み込み（これが唯一の信頼できるソース）
       loadAllFromFirebase: async function() {
         const data = await this.loadFromFirebase('kintaiData');
@@ -8499,7 +8567,7 @@
               // 削除ボタン
               const deleteBtn = document.getElementById('deleteRecordBtn');
               if (deleteBtn) {
-                deleteBtn.addEventListener('click', function() {
+                deleteBtn.addEventListener('click', async function() {
                   const recId = this.getAttribute('data-record-id');
                   const rec = App.records.find(r => r.id === recId);
                   if (!rec) return;
@@ -8508,8 +8576,22 @@
                     return;
                   }
                   
-                  App.records = App.records.filter(r => r.id !== recId);
-                  App.save();
+                  // 【v3.0.0】二重クリック防止
+                  if (this.disabled) return;
+                  this.disabled = true;
+                  const originalText = this.textContent;
+                  this.textContent = '削除中...';
+                  
+                  // 【v3.0.0】FirebaseSync.deleteOneRecord でトランザクション削除
+                  // （旧コードは App.save() のマージ方式で削除が反映されないバグがあった）
+                  const success = await FirebaseSync.deleteOneRecord(recId);
+                  
+                  if (!success) {
+                    this.disabled = false;
+                    this.textContent = originalText;
+                    return;
+                  }
+                  
                   document.getElementById('attendanceDetailModal').classList.add('hidden');
                   alert('記録を削除しました');
                   self.render('dailyList');
