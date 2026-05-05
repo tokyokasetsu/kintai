@@ -3276,9 +3276,27 @@
       appId: "1:521954488283:web:863b8b6c779b96406e01fe"
     };
 
-    // Firebase初期化
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+    // ===========================================================================
+    // 【v3.0.0】Firebase初期化（SDK読み込み失敗に強い防御版）
+    //   ローカル環境(file://) や CDN 接続失敗時でも、アプリが完全停止せず
+    //   LocalStorage モードで動作継続するよう、try-catch で包む。
+    //   ※ firebase が undefined でも `db` は null になるだけで、
+    //     FirebaseSync 内のメソッドは typeof db === 'undefined' チェックで安全に動く。
+    // ===========================================================================
+    let db = null;
+    try {
+      if (typeof firebase === 'undefined') {
+        console.error('[Firebase v3] Firebase SDK が読み込まれていません。CDN(gstatic.com)への接続を確認してください。LocalStorage モードで起動します。');
+        // ローカル環境やCDN接続失敗時の警告（dialog は startup 時に出さない、邪魔なので console のみ）
+      } else {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.firestore();
+        console.log('[Firebase v3] 初期化完了');
+      }
+    } catch (e) {
+      console.error('[Firebase v3] Firebase初期化失敗:', e);
+      db = null;
+    }
 
     // データ管理
     const Storage = {
@@ -3303,6 +3321,7 @@
       // LocalStorageはキャッシュとしてのみ使用
       
       saveToFirebase: async function(collection, data) {
+        if (!db) { console.warn('[Firebase v3] DB未接続、saveToFirebase スキップ'); return; }
         try {
           await db.collection(collection).doc('main').set(data);
           console.log('[Firebase] 保存完了:', collection);
@@ -3313,6 +3332,7 @@
       },
       
       loadFromFirebase: async function(collection) {
+        if (!db) { console.warn('[Firebase v3] DB未接続、loadFromFirebase スキップ'); return null; }
         try {
           const doc = await db.collection(collection).doc('main').get();
           if (doc.exists) {
@@ -3327,31 +3347,122 @@
         }
       },
       
-      // 【重要】saveAllToFirebaseは明示的なユーザー操作時のみ呼ばれるべき
+      // ===========================================================================
+      // 【v3.0.0 修正】saveAllToFirebase
+      //   問題: 旧版は「ローカルの App.records をそのまま Firebase に上書き」していた。
+      //         この方式だと、複数端末が同時に save したときに「先に保存した端末の更新」を
+      //         「後で保存した端末」が古いローカル状態で塗りつぶしてしまう（競合上書き）。
+      //         これが4月中の「打刻が消える」バグの根本原因。
+      //
+      //   修正: Firestoreトランザクション (runTransaction) を使い、
+      //         「リモートを読む → ローカルとマージ → 書き戻す」を原子的に実行。
+      //         records 配列は id をキーにマージ。両方にあるレコードは
+      //         updatedAt(または clockInTime) が新しい方を採用。
+      //         他端末で新規打刻されたレコードは消えずに保持される。
+      // ===========================================================================
       saveAllToFirebase: async function() {
-        // 安全チェック: recordsが極端に少ない場合は警告
-        if (App.records.length < 10 && App._firebaseRecordsCount > 10) {
-          console.error('[Firebase] 危険: recordsが大幅に減少しています。保存を中止します。');
-          console.error('[Firebase] ローカル:', App.records.length, 'Firebase:', App._firebaseRecordsCount);
-          return false;
+        if (typeof db === 'undefined' || !db) {
+          // 【v3.0.0】Firebase未接続でも LocalStorage には保存されている前提で
+          // 成功扱いにする。これにより打刻処理が「失敗」と誤判定されてロールバックされない。
+          console.warn('[Firebase v3] DB未接続、LocalStorageのみで保存（オフラインモード）');
+          // ユーザーに警告を一度だけ表示
+          if (!App._offlineWarningShown) {
+            App._offlineWarningShown = true;
+            try {
+              alert('⚠️ Firebaseに接続できません。\n打刻データは端末内には保存されますが、クラウドには反映されません。\n\n通信状態を確認してください。');
+            } catch (_) {}
+          }
+          return true;  // 成功扱い（LocalStorageに保存済み）
         }
         
-        const data = {
-          employees: App.employees,
-          jobSites: App.jobSites,
-          records: App.records,
-          corrections: App.corrections || [],
-          addressRequests: App.addressRequests || [],
-          overtimeRequests: App.overtimeRequests || [],
-          deletedEmployees: App.deletedEmployees || [],
-          siteDailyReports: App.siteDailyReports || {},
-          siteFinanceData: App.siteFinanceData || {},
-          announcement: App.announcement || null,
-          lastUpdated: new Date().toISOString()
-        };
-        await this.saveToFirebase('kintaiData', data);
-        App._firebaseRecordsCount = App.records.length;
-        return true;
+        try {
+          const docRef = db.collection('kintaiData').doc('main');
+          
+          const result = await db.runTransaction(async function(tx) {
+            const snap = await tx.get(docRef);
+            const remote = snap.exists ? snap.data() : {};
+            const remoteRecords = Array.isArray(remote.records) ? remote.records : [];
+            const localRecords = Array.isArray(App.records) ? App.records : [];
+            
+            // ---- records を id ベースでマージ ----
+            const merged = new Map();
+            
+            // まずリモート分を全部入れる
+            for (const r of remoteRecords) {
+              if (r && r.id) merged.set(r.id, r);
+            }
+            
+            // ローカル分をマージ
+            for (const local of localRecords) {
+              if (!local || !local.id) continue;
+              const existing = merged.get(local.id);
+              if (!existing) {
+                // ローカルにのみある = 新規打刻
+                merged.set(local.id, local);
+              } else {
+                // 両方にある = updatedAt(なければclockInTime)が新しい方を採用
+                const lt = new Date(local.updatedAt || local.clockInTime || local.addedAt || 0).getTime();
+                const rt = new Date(existing.updatedAt || existing.clockInTime || existing.addedAt || 0).getTime();
+                if (lt >= rt) {
+                  merged.set(local.id, local);
+                }
+                // remote のほうが新しければ上書きしない（remote版が残る）
+              }
+            }
+            
+            const finalRecords = Array.from(merged.values());
+            
+            // ---- 安全チェック: マージ後がリモートの95%未満なら異常 ----
+            if (remoteRecords.length > 5 && finalRecords.length < remoteRecords.length * 0.95) {
+              const msg = '[Firebase v3] 保護機能: マージ後records件数(' + finalRecords.length + ')がリモート(' + remoteRecords.length + ')の95%未満。保存中止';
+              console.error(msg);
+              throw new Error(msg);
+            }
+            
+            // ---- 書き込み ----
+            tx.set(docRef, {
+              employees: App.employees && App.employees.length > 0 ? App.employees : (remote.employees || []),
+              jobSites: App.jobSites && App.jobSites.length > 0 ? App.jobSites : (remote.jobSites || []),
+              records: finalRecords,
+              corrections: App.corrections || remote.corrections || [],
+              addressRequests: App.addressRequests || remote.addressRequests || [],
+              overtimeRequests: App.overtimeRequests || remote.overtimeRequests || [],
+              deletedEmployees: App.deletedEmployees || remote.deletedEmployees || [],
+              siteDailyReports: App.siteDailyReports || remote.siteDailyReports || {},
+              siteFinanceData: App.siteFinanceData || remote.siteFinanceData || {},
+              announcement: App.announcement !== undefined ? App.announcement : (remote.announcement || null),
+              lastUpdated: new Date().toISOString()
+            });
+            
+            // ---- ローカル状態もマージ結果で更新（消えていた他端末の打刻が復活する）----
+            App.records = finalRecords;
+            App._firebaseRecordsCount = finalRecords.length;
+            
+            // 【v3.0.0】スナップショットを更新（次回save時の差分判定用）
+            try {
+              App._recordsSnapshot = {};
+              for (const r of finalRecords) {
+                if (r && r.id) App._recordsSnapshot[r.id] = JSON.parse(JSON.stringify(r));
+              }
+            } catch (_) {}
+            
+            console.log('[Firebase v3] saveAllToFirebase 完了 local=' + localRecords.length + ' remote=' + remoteRecords.length + ' merged=' + finalRecords.length);
+            return true;
+          });
+          
+          return result;
+        } catch (e) {
+          console.error('[Firebase v3] saveAllToFirebase 失敗:', e);
+          // ユーザーへの通知（連続エラー時のスパムを避けるため、5秒に1回まで）
+          const now = Date.now();
+          if (!App._lastSaveErrorTime || now - App._lastSaveErrorTime > 5000) {
+            App._lastSaveErrorTime = now;
+            try {
+              alert('データ保存中にエラーが発生しました。\n通信状態を確認して、もう一度お試しください。\n\n' + (e.message || e));
+            } catch (_) {}
+          }
+          return false;
+        }
       },
       
       // Firebaseから読み込み（これが唯一の信頼できるソース）
@@ -3385,66 +3496,131 @@
           Storage.set('siteDailyReports', App.siteDailyReports);
           Storage.set('siteFinanceData', App.siteFinanceData);
           Storage.set('announcement', App.announcement);
+          
+          // 【v3.0.0】記録のスナップショットを取得（次回save時の差分判定に使用）
+          try {
+            App._recordsSnapshot = {};
+            for (const r of (App.records || [])) {
+              if (r && r.id) App._recordsSnapshot[r.id] = JSON.parse(JSON.stringify(r));
+            }
+          } catch (_) {}
+          
           return true;
         }
         return false;
       },
       
-      // リアルタイム同期（Firebaseの変更を監視）
+      // ===========================================================================
+      // 【v3.0.0 修正】startRealtimeSync
+      //   問題: 旧版は「lastUpdatedとlastSaveTimeが2秒以内なら自分の保存とみなして無視」
+      //         していた。複数端末が同時刻帯（朝8時など）に保存すると、
+      //         他端末の更新通知も「自分の」と誤認して無視され、その後の save() で
+      //         他端末の更新を含まないローカル状態でFirebaseを上書きする結果、
+      //         他人の打刻が消失していた。
+      //
+      //   修正: 2秒チェックを撤廃し、リモートのレコードを id ベースでローカルにマージ。
+      //         両方にあるレコードは updatedAt の新しい方を採用。
+      //         ローカルにのみある「1分以内に作成されたレコード」は保持
+      //         （自分が今打刻した直後の場合、リモート反映が遅れるため）。
+      // ===========================================================================
       startRealtimeSync: function() {
-        db.collection('kintaiData').doc('main').onSnapshot((doc) => {
-          if (doc.exists) {
-            const data = doc.data();
-            
-            // 自分の保存による更新は無視
-            if (data.lastUpdated && App.lastSaveTime) {
-              const updateTime = new Date(data.lastUpdated).getTime();
-              const saveTime = new Date(App.lastSaveTime).getTime();
-              if (Math.abs(updateTime - saveTime) < 2000) {
-                return;
+        if (typeof db === 'undefined' || !db) {
+          console.warn('[Firebase v3] DB未接続、リアルタイム同期スキップ');
+          return;
+        }
+        
+        db.collection('kintaiData').doc('main').onSnapshot(function(doc) {
+          if (!doc.exists) return;
+          const data = doc.data();
+          const remoteRecords = Array.isArray(data.records) ? data.records : [];
+          const localRecords = Array.isArray(App.records) ? App.records : [];
+          const now = Date.now();
+          
+          // ---- records を id ベースで差分マージ ----
+          const merged = new Map();
+          
+          // まずリモート分を全部入れる
+          for (const r of remoteRecords) {
+            if (r && r.id) merged.set(r.id, r);
+          }
+          
+          // ローカル分をマージ
+          for (const local of localRecords) {
+            if (!local || !local.id) continue;
+            const existing = merged.get(local.id);
+            if (!existing) {
+              // ローカルにのみある場合、1分以内なら「直近に打刻したばかりで反映待ち」とみなして保持
+              const ts = new Date(local.updatedAt || local.clockInTime || local.addedAt || 0).getTime();
+              if (now - ts < 60000) {
+                merged.set(local.id, local);
+              }
+              // 1分以上前のローカル専有レコードは捨てる（リモートで削除された）
+            } else {
+              // 両方にある = updatedAt(なければclockInTime)が新しい方を採用
+              const lt = new Date(local.updatedAt || local.clockInTime || local.addedAt || 0).getTime();
+              const rt = new Date(existing.updatedAt || existing.clockInTime || existing.addedAt || 0).getTime();
+              if (lt > rt) {
+                merged.set(local.id, local);
               }
             }
-            
-            console.log('[Firebase] リアルタイム更新受信');
-            
-            // Firebaseのデータで更新
-            if (data.employees && data.employees.length > 0) App.employees = data.employees;
-            if (data.jobSites && data.jobSites.length > 0) App.jobSites = data.jobSites;
-            if (data.records) {
-              App._firebaseRecordsCount = data.records.length;
-              App.records = data.records;
-            }
-            if (data.corrections) App.corrections = data.corrections;
-            if (data.addressRequests) App.addressRequests = data.addressRequests;
-            if (data.deletedEmployees) App.deletedEmployees = data.deletedEmployees;
-            if (data.siteDailyReports) App.siteDailyReports = data.siteDailyReports;
-            if (data.siteFinanceData) App.siteFinanceData = data.siteFinanceData;
-            if (data.announcement !== undefined) App.announcement = data.announcement;
-            
-            // LocalStorageにキャッシュ
-            Storage.set('employees', App.employees);
-            Storage.set('jobsites', App.jobSites);
-            Storage.set('records', App.records);
-            Storage.set('corrections', App.corrections);
-            Storage.set('addressRequests', App.addressRequests);
-            Storage.set('deletedEmployees', App.deletedEmployees);
-            Storage.set('siteDailyReports', App.siteDailyReports);
-            Storage.set('siteFinanceData', App.siteFinanceData);
-            Storage.set('announcement', App.announcement);
-            
-            // 画面更新
-            if (App.currentView !== 'login' && App.currentView !== 'accessAuth' && App.currentUser) {
-              Views.render(App.currentView);
-            }
           }
-        }, (error) => {
-          console.error('[Firebase] リアルタイム同期エラー:', error);
+          
+          const finalRecords = Array.from(merged.values());
+          
+          // 件数が大幅減少していれば警告（操作はブロックしない、通知のみ）
+          if (localRecords.length > 5 && finalRecords.length < localRecords.length * 0.95) {
+            console.warn('[Firebase v3] リアルタイム同期で件数大幅減少: local=' + localRecords.length + ' → merged=' + finalRecords.length);
+          }
+          
+          App.records = finalRecords;
+          App._firebaseRecordsCount = finalRecords.length;
+          
+          // 【v3.0.0】スナップショットを更新（次回save時の差分判定用）
+          try {
+            App._recordsSnapshot = {};
+            for (const r of finalRecords) {
+              if (r && r.id) App._recordsSnapshot[r.id] = JSON.parse(JSON.stringify(r));
+            }
+          } catch (_) {}
+          
+          // その他フィールドはリモートを採用（管理者操作の即時反映）
+          if (data.employees && data.employees.length > 0) App.employees = data.employees;
+          if (data.jobSites && data.jobSites.length > 0) App.jobSites = data.jobSites;
+          if (data.corrections) App.corrections = data.corrections;
+          if (data.addressRequests) App.addressRequests = data.addressRequests;
+          if (data.overtimeRequests) App.overtimeRequests = data.overtimeRequests;
+          if (data.deletedEmployees) App.deletedEmployees = data.deletedEmployees;
+          if (data.siteDailyReports) App.siteDailyReports = data.siteDailyReports;
+          if (data.siteFinanceData) App.siteFinanceData = data.siteFinanceData;
+          if (data.announcement !== undefined) App.announcement = data.announcement;
+          
+          // LocalStorageキャッシュ
+          Storage.set('employees', App.employees);
+          Storage.set('jobsites', App.jobSites);
+          Storage.set('records', App.records);
+          Storage.set('corrections', App.corrections);
+          Storage.set('addressRequests', App.addressRequests);
+          Storage.set('overtimeRequests', App.overtimeRequests);
+          Storage.set('deletedEmployees', App.deletedEmployees);
+          Storage.set('siteDailyReports', App.siteDailyReports);
+          Storage.set('siteFinanceData', App.siteFinanceData);
+          Storage.set('announcement', App.announcement);
+          
+          console.log('[Firebase v3] リアルタイム更新受信 remote=' + remoteRecords.length + ' merged=' + finalRecords.length);
+          
+          // 画面更新
+          if (App.currentView !== 'login' && App.currentView !== 'accessAuth' && App.currentUser) {
+            Views.render(App.currentView);
+          }
+        }, function(error) {
+          console.error('[Firebase v3] リアルタイム同期エラー:', error);
         });
       },
       
       // 【バックアップ機能】
       // Firestoreの別コレクションに日付別でバックアップ
       createBackup: async function() {
+        if (!db) { console.warn('[Firebase v3] DB未接続、createBackup スキップ'); return null; }
         const now = new Date();
         const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
         const timeStr = now.toISOString().slice(11, 19).replace(/:/g, ''); // HHMMSS
@@ -3477,6 +3653,7 @@
       
       // バックアップ一覧を取得
       listBackups: async function() {
+        if (!db) { console.warn('[Firebase v3] DB未接続、listBackups スキップ'); return []; }
         try {
           const snapshot = await db.collection('kintaiBackups')
             .orderBy('backupDate', 'desc')
@@ -3499,6 +3676,7 @@
       
       // バックアップから復元
       restoreFromBackup: async function(backupId) {
+        if (!db) { alert('Firebaseに接続できないため復元できません'); return false; }
         try {
           const doc = await db.collection('kintaiBackups').doc(backupId).get();
           if (!doc.exists) {
@@ -3576,8 +3754,8 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v2.8.9';
-    const APP_UPDATE_DATE = '2026/03/07';
+    const APP_VERSION = 'v3.0.0';
+    const APP_UPDATE_DATE = '2026/05/01';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
     }
@@ -3585,8 +3763,11 @@
     // 【重要】Firebaseから最新バージョンをチェックして強制更新
     (async function checkLatestVersion() {
       try {
-        // Firebaseの初期化を待つ
-        const db = firebase.firestore();
+        // 【v3.0.0】Firebase が使用不可の場合は早期リターン
+        if (typeof firebase === 'undefined' || !db) {
+          console.log('[バージョンチェック] Firebase未接続のためスキップ');
+          return;
+        }
         const versionDoc = await db.collection('appConfig').doc('version').get();
         
         if (versionDoc.exists) {
@@ -3667,6 +3848,40 @@
       historyMonth: null,
 
       save: function() {
+        // ===========================================================================
+        // 【v3.0.0 修正】保存直前に「ローカルでのみ変更されたレコード」に updatedAt を付与
+        //   マージロジックが「両方にある場合 updatedAt の新しい方を採用」のため、
+        //   ローカル変更分が確実にリモートを上書きするよう、保存直前に必ずマーク。
+        //   既存レコードと完全一致するもの(=変更されていないもの)はスキップ。
+        // ===========================================================================
+        const nowIso = new Date().toISOString();
+        const lastSnapshot = this._recordsSnapshot || {};
+        const records = Array.isArray(this.records) ? this.records : [];
+        for (const r of records) {
+          if (!r || !r.id) continue;
+          const prev = lastSnapshot[r.id];
+          if (!prev) {
+            // 新規レコード → updatedAt が無ければ付与
+            if (!r.updatedAt) r.updatedAt = nowIso;
+          } else {
+            // 既存レコード: 内容が変わっているか確認
+            try {
+              if (JSON.stringify(prev) !== JSON.stringify(r)) {
+                r.updatedAt = nowIso;
+              }
+            } catch (_) {
+              r.updatedAt = nowIso;
+            }
+          }
+        }
+        // 次回比較用にスナップショットを記録（deep copy）
+        try {
+          this._recordsSnapshot = {};
+          for (const r of records) {
+            if (r && r.id) this._recordsSnapshot[r.id] = JSON.parse(JSON.stringify(r));
+          }
+        } catch (_) {}
+        
         Storage.set('employees', this.employees);
         Storage.set('jobsites', this.jobSites);
         Storage.set('records', this.records);
@@ -3682,6 +3897,7 @@
         FirebaseSync.saveAllToFirebase();
       },
       lastSaveTime: null,
+      _recordsSnapshot: null,
       
       // 現場日報のキー生成
       getSiteReportKey: function(date, siteName) {
@@ -4020,27 +4236,11 @@
         ).length;
       },
 
+      // 【v3.0.0】GPS取得は無効化（位置情報を使わない方針）
+      // 互換性のため関数は残すが、コールバックを即座に実行するだけ
       getGPS: function(callback) {
         this.gpsLocation = null;
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            function(position) {
-              App.gpsLocation = {
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-                accuracy: position.coords.accuracy
-              };
-              if (callback) callback();
-            },
-            function(error) {
-              App.gpsLocation = { lat: 35.4437, lng: 139.6380, accuracy: 50, isDemo: true };
-              if (callback) callback();
-            }
-          );
-        } else {
-          this.gpsLocation = { lat: 35.4437, lng: 139.6380, accuracy: 50, isDemo: true };
-          if (callback) callback();
-        }
+        if (callback) callback();
       }
     };
 
@@ -4305,7 +4505,6 @@
               <p class="greeting-text">${App.getGreeting()}</p>
               <h2 class="user-name">${App.currentUser.name} さん</h2>
             </div>
-            <div id="clock" class="clock-display"></div>
             <div class="button-container">
               <button id="clockInBtn" class="main-btn clock-in-btn" ${isWorking || hasPastWorking ? 'disabled' : ''}>
                 <span class="btn-icon">🌅</span>
@@ -4317,7 +4516,6 @@
               </button>
             </div>
             ${pastWorkingWarningHtml}
-            <p class="gps-notice">📍 位置情報は打刻時のみ取得・記録されます</p>
             <div class="status-card">
               <h3 class="status-title">本日の状態</h3>
               ${statusHtml}
@@ -4352,18 +4550,12 @@
             siteOptions += `<option value="${site.id}">${site.name}</option>`;
           });
 
-        let gpsHtml = '<p class="gps-loading">位置情報を取得中...</p>';
-        if (App.gpsLocation) {
-          gpsHtml = `
-            <div class="gps-info">
-              <p>緯度: ${App.gpsLocation.lat.toFixed(4)}</p>
-              <p>経度: ${App.gpsLocation.lng.toFixed(4)}</p>
-              <p>精度: ±${Math.round(App.gpsLocation.accuracy)}m</p>
-              ${App.gpsLocation.isDemo ? '<p class="demo-text">（デモデータ）</p>' : ''}
-            </div>
-            <div id="clockInMap" class="map-container"></div>
-          `;
-        }
+        // 【v3.0.0】今打刻すると日勤/夜勤になるかを表示
+        const clockInHour = new Date().getHours();
+        const willBeNight = (clockInHour >= 17 || clockInHour < 5);
+        const shiftBadge = willBeNight 
+          ? '<span style="display:inline-block; padding:4px 12px; background:#1e3a8a; color:#fff; border-radius:6px; font-weight:600;">🌙 夜勤として記録</span>'
+          : '<span style="display:inline-block; padding:4px 12px; background:#fbbf24; color:#000; border-radius:6px; font-weight:600;">☀️ 日勤として記録</span>';
 
         return `
           <div class="header">
@@ -4376,8 +4568,8 @@
               <span class="info-value">${App.currentUser.name}</span>
             </div>
             <div class="info-row">
-              <span class="info-label">日時</span>
-              <span class="info-value">${App.formatDate(App.getToday())} ${new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}</span>
+              <span class="info-label">シフト</span>
+              <span class="info-value">${shiftBadge}</span>
             </div>
             <div class="divider"></div>
             <p class="section-title">現場を選択してください</p>
@@ -4388,11 +4580,6 @@
             <p class="section-title">🆕 新しい現場を入力</p>
             <input type="text" id="customJobSite" class="form-input" placeholder="例: ○○マンション新築工事">
             <p class="input-hint">※ 入力した現場は次回から選択肢に追加されます</p>
-            <div class="divider"></div>
-            <div class="gps-section">
-              <p class="section-title">📍 現在地</p>
-              <div id="gpsInfo">${gpsHtml}</div>
-            </div>
             <button id="confirmClockIn" class="confirm-btn" disabled>始業を確定</button>
           </div>
         `;
@@ -4401,19 +4588,11 @@
       clockOut: function() {
         const record = App.getWorkingRecord();
         const isPastRecord = record && record.workDate < App.getToday();
-        let gpsHtml = '<p class="gps-loading">位置情報を取得中...</p>';
-        if (App.gpsLocation) {
-          gpsHtml = `
-            <div class="gps-info">
-              <p>緯度: ${App.gpsLocation.lat.toFixed(4)}</p>
-              <p>経度: ${App.gpsLocation.lng.toFixed(4)}</p>
-            </div>
-            <div id="clockOutMap" class="map-container"></div>
-          `;
-        }
         
-        // 正社員(worker)は時刻表示なし
-        const showTimes = App.currentUser.role === 'parttime' || App.currentUser.role === 'admin' || App.currentUser.role === 'subadmin';
+        // 【v3.0.0】打刻画面から時刻表示を削除（労基対策）。シフト表示のみ。
+        const shiftLabel = record && record.shiftType === 'night'
+          ? '<span style="display:inline-block; padding:4px 12px; background:#1e3a8a; color:#fff; border-radius:6px; font-weight:600;">🌙 夜勤</span>'
+          : '<span style="display:inline-block; padding:4px 12px; background:#fbbf24; color:#000; border-radius:6px; font-weight:600;">☀️ 日勤</span>';
         
         // 過去の未退勤の警告メッセージ
         let warningHtml = '';
@@ -4421,7 +4600,6 @@
           warningHtml = `
             <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
               <p style="color: #92400e; font-weight: 600; margin: 0;">⚠️ ${record.workDate} の退勤処理です</p>
-              <p style="color: #92400e; font-size: 12px; margin: 8px 0 0 0;">日勤のため、17:00で退勤として記録されます</p>
             </div>
           `;
         } else if (isPastRecord) {
@@ -4444,30 +4622,16 @@
               <span class="info-value">${App.currentUser.name}</span>
             </div>
             <div class="info-row">
-              <span class="info-label">出勤日</span>
-              <span class="info-value">${record ? record.workDate : ''}</span>
-            </div>
-            <div class="info-row">
               <span class="info-label">現場</span>
               <span class="info-value">${record ? record.jobSiteName : ''}</span>
             </div>
-            ${showTimes ? `
             <div class="info-row">
-              <span class="info-label">始業時刻</span>
-              <span class="info-value">${record ? App.formatTime(record.clockInTime) : ''}</span>
+              <span class="info-label">シフト</span>
+              <span class="info-value">${shiftLabel}</span>
             </div>
-            <div class="info-row">
-              <span class="info-label">現在時刻</span>
-              <span class="info-value">${new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-            ` : ''}
             <div class="divider"></div>
             <p class="section-title">作業内容メモ（任意）</p>
             <textarea id="workMemo" class="form-textarea" placeholder="本日の作業内容を入力"></textarea>
-            <div class="gps-section">
-              <p class="section-title">📍 現在地</p>
-              <div id="gpsInfo">${gpsHtml}</div>
-            </div>
             <button id="confirmClockOut" class="confirm-btn">終業を確定</button>
           </div>
         `;
@@ -6367,17 +6531,7 @@
           }
         }
 
-        // 時計更新
-        if (view === 'home') {
-          const clockEl = document.getElementById('clock');
-          if (clockEl) {
-            function updateClock() {
-              clockEl.textContent = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            }
-            updateClock();
-            setInterval(updateClock, 1000);
-          }
-        }
+        // 【v3.0.0】ホーム画面の時計表示は労基対策で削除済み
 
         // ログイン
         if (view === 'login') {
@@ -6503,14 +6657,14 @@
                   alert(`⚠️ ${pastWorking.workDate} の退勤処理が完了していません。\n\n先に退勤処理を行ってください。`);
                   return;
                 }
-                App.getGPS(function() { self.render('clockIn'); });
+                self.render('clockIn');
               }
             });
           }
           if (clockOutBtn) {
             clockOutBtn.addEventListener('click', function() {
               if (!this.disabled) {
-                App.getGPS(function() { self.render('clockOut'); });
+                self.render('clockOut');
               }
             });
           }
@@ -7294,19 +7448,6 @@
           const customJobSite = document.getElementById('customJobSite');
           const confirmBtn = document.getElementById('confirmClockIn');
 
-          // 地図を初期化
-          const mapEl = document.getElementById('clockInMap');
-          if (mapEl && App.gpsLocation) {
-            setTimeout(function() {
-              const map = L.map('clockInMap').setView([App.gpsLocation.lat, App.gpsLocation.lng], 16);
-              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap'
-              }).addTo(map);
-              L.marker([App.gpsLocation.lat, App.gpsLocation.lng]).addTo(map)
-                .bindPopup('現在地').openPopup();
-            }, 100);
-          }
-
           // 入力状態をチェックする関数
           function checkInput() {
             const hasSelect = jobSiteSelect.value !== '';
@@ -7335,7 +7476,10 @@
           }
 
           if (confirmBtn) {
-            confirmBtn.addEventListener('click', function() {
+            confirmBtn.addEventListener('click', async function() {
+              // 【v3.0.0】二重クリック防止
+              if (this.disabled) return;
+              
               let siteId = jobSiteSelect.value;
               let siteName = '';
               
@@ -7396,6 +7540,11 @@
                 return;
               }
 
+              // 【v3.0.0】二重クリック防止: ここから保存処理
+              this.disabled = true;
+              const originalText = this.textContent;
+              this.textContent = '保存中...';
+
               // 夜勤判定（17時〜翌5時の出勤は夜勤）
               const clockInHour = new Date().getHours();
               const shiftType = (clockInHour >= 17 || clockInHour < 5) ? 'night' : 'day';
@@ -7409,16 +7558,38 @@
                 workDate: App.getToday(),
                 clockInTime: new Date().toISOString(),
                 clockOutTime: null,
-                clockInLat: App.gpsLocation ? App.gpsLocation.lat : null,
-                clockInLng: App.gpsLocation ? App.gpsLocation.lng : null,
                 shiftType: shiftType,
                 memo: '',
-                status: 'working'
+                status: 'working',
+                updatedAt: new Date().toISOString()
               };
 
               App.records.push(newRecord);
-              App.save();
-              alert('始業を記録しました！' + (shiftType === 'night' ? '（🌙夜勤）' : ''));
+
+              // 【v3.0.0】保存成功を確認してからアラート表示
+              try {
+                Storage.set('records', App.records);
+                const saved = await FirebaseSync.saveAllToFirebase();
+                if (!saved) {
+                  // 保存失敗 → ロールバック
+                  App.records = App.records.filter(r => r.id !== newRecord.id);
+                  Storage.set('records', App.records);
+                  alert('⚠️ 保存に失敗しました。\n\n通信状態を確認して、もう一度「始業を確定」を押してください。\n（申請からは出さないでください。重複の原因になります）');
+                  this.disabled = false;
+                  this.textContent = originalText;
+                  return;
+                }
+              } catch (e) {
+                // エラー → ロールバック
+                App.records = App.records.filter(r => r.id !== newRecord.id);
+                Storage.set('records', App.records);
+                alert('⚠️ エラーが発生しました：\n' + (e.message || e) + '\n\nもう一度お試しください。');
+                this.disabled = false;
+                this.textContent = originalText;
+                return;
+              }
+
+              alert('✅ 始業を記録しました！' + (shiftType === 'night' ? '（🌙夜勤）' : '（☀️日勤）'));
               // 役割に応じた画面に戻る
               if (App.currentUser.role === 'admin') {
                 self.render('admin');
@@ -7436,23 +7607,20 @@
           const confirmBtn = document.getElementById('confirmClockOut');
           const workMemo = document.getElementById('workMemo');
 
-          // 地図を初期化
-          const mapEl = document.getElementById('clockOutMap');
-          if (mapEl && App.gpsLocation) {
-            setTimeout(function() {
-              const map = L.map('clockOutMap').setView([App.gpsLocation.lat, App.gpsLocation.lng], 16);
-              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap'
-              }).addTo(map);
-              L.marker([App.gpsLocation.lat, App.gpsLocation.lng]).addTo(map)
-                .bindPopup('現在地').openPopup();
-            }, 100);
-          }
-
           if (confirmBtn) {
-            confirmBtn.addEventListener('click', function() {
+            confirmBtn.addEventListener('click', async function() {
+              // 【v3.0.0】二重クリック防止
+              if (this.disabled) return;
+              this.disabled = true;
+              const originalText = this.textContent;
+              this.textContent = '保存中...';
+              
               const record = App.getWorkingRecord();
-              if (!record) return;
+              if (!record) {
+                this.disabled = false;
+                this.textContent = originalText;
+                return;
+              }
 
               const today = App.getToday();
               const isPastRecord = record.workDate < today;
@@ -7471,25 +7639,50 @@
               
               const workHours = (clockOutTime - clockInTime) / (1000 * 60 * 60);
 
+              // 【v3.0.0】エラー時の復元用に元の状態を記憶
+              const originalRecord = JSON.parse(JSON.stringify(record));
+
               record.clockOutTime = clockOutTime.toISOString();
-              record.clockOutLat = App.gpsLocation ? App.gpsLocation.lat : null;
-              record.clockOutLng = App.gpsLocation ? App.gpsLocation.lng : null;
               record.workHours = Math.round(workHours * 100) / 100;
               record.overtimeHours = Math.max(0, Math.round((workHours - 8) * 100) / 100);
               record.memo = workMemo ? workMemo.value : '';
               record.status = 'completed';
+              record.updatedAt = new Date().toISOString();
               
               // アルバイトの場合、その時点の時給を記録に保存
               if (App.currentUser.role === 'parttime') {
                 record.hourlyRate = App.currentUser.hourlyRate || 1200;
               }
 
-              App.save();
+              // 【v3.0.0】保存成功を確認してからアラート表示
+              try {
+                Storage.set('records', App.records);
+                const saved = await FirebaseSync.saveAllToFirebase();
+                if (!saved) {
+                  // 保存失敗 → ロールバック
+                  const idx = App.records.findIndex(r => r.id === originalRecord.id);
+                  if (idx !== -1) App.records[idx] = originalRecord;
+                  Storage.set('records', App.records);
+                  alert('⚠️ 保存に失敗しました。\n\n通信状態を確認して、もう一度「終業を確定」を押してください。\n（申請からは出さないでください。重複の原因になります）');
+                  this.disabled = false;
+                  this.textContent = originalText;
+                  return;
+                }
+              } catch (e) {
+                // エラー → ロールバック
+                const idx = App.records.findIndex(r => r.id === originalRecord.id);
+                if (idx !== -1) App.records[idx] = originalRecord;
+                Storage.set('records', App.records);
+                alert('⚠️ エラーが発生しました：\n' + (e.message || e) + '\n\nもう一度お試しください。');
+                this.disabled = false;
+                this.textContent = originalText;
+                return;
+              }
               
               if (isPastRecord && record.shiftType === 'day') {
-                alert(`${record.workDate} の終業を17:00で記録しました。\nお疲れさまでした！`);
+                alert('✅ ' + record.workDate + ' の終業を記録しました。\nお疲れさまでした！');
               } else {
-                alert('終業を記録しました！お疲れさまでした！');
+                alert('✅ 終業を記録しました！お疲れさまでした！');
               }
               
               // 役割に応じた画面に戻る
@@ -7566,9 +7759,7 @@
           const adminClockIn = document.getElementById('adminClockIn');
           if (adminClockIn) {
             adminClockIn.addEventListener('click', function() {
-              App.getGPS(function() {
-                self.render('clockIn');
-              });
+              self.render('clockIn');
             });
           }
 
@@ -7576,9 +7767,7 @@
           const adminClockOut = document.getElementById('adminClockOut');
           if (adminClockOut) {
             adminClockOut.addEventListener('click', function() {
-              App.getGPS(function() {
-                self.render('clockOut');
-              });
+              self.render('clockOut');
             });
           }
         }
@@ -7606,9 +7795,7 @@
           const subadminClockIn = document.getElementById('subadminClockIn');
           if (subadminClockIn) {
             subadminClockIn.addEventListener('click', function() {
-              App.getGPS(function() {
-                self.render('clockIn');
-              });
+              self.render('clockIn');
             });
           }
 
@@ -7616,9 +7803,7 @@
           const subadminClockOut = document.getElementById('subadminClockOut');
           if (subadminClockOut) {
             subadminClockOut.addEventListener('click', function() {
-              App.getGPS(function() {
-                self.render('clockOut');
-              });
+              self.render('clockOut');
             });
           }
         }
