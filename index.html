@@ -5440,66 +5440,6 @@
           records.some(r => r.employeeId === emp.id)
         ).length;
 
-        // 【v3.1.0 ④】選択日が属する「その月」の現場別 延べ出勤日数（人日）を集計
-        //   例: A現場に月内で延べ12人日（日勤10・夜勤2）など。
-        //   プライベート従業員は副管理者には集計させない（既存の可視性ルールに合わせる）。
-        const selMonth = (App.selectedDate || '').slice(0, 7); // "YYYY-MM"
-        let monthRecordsForSite = App.records.filter(r => r.workDate && r.workDate.startsWith(selMonth));
-        if (!isAdmin) {
-          monthRecordsForSite = monthRecordsForSite.filter(r => !privateIds.includes(r.employeeId));
-        }
-        // 現場名ごとに集計
-        const siteAgg = {}; // { 現場名: {total, day, night, empSet:Set} }
-        monthRecordsForSite.forEach(r => {
-          const key = r.jobSiteName || '（現場名なし）';
-          if (!siteAgg[key]) siteAgg[key] = { total: 0, day: 0, night: 0, empSet: new Set() };
-          siteAgg[key].total++;
-          if (r.shiftType === 'night') siteAgg[key].night++;
-          else siteAgg[key].day++;
-          if (r.employeeId) siteAgg[key].empSet.add(r.employeeId);
-        });
-        // 延べ人日の多い順に並べる
-        const siteAggList = Object.keys(siteAgg).map(name => ({
-          name: name,
-          total: siteAgg[name].total,
-          day: siteAgg[name].day,
-          night: siteAgg[name].night,
-          people: siteAgg[name].empSet.size
-        })).sort((a, b) => b.total - a.total);
-
-        // 月間現場別集計のHTML（折りたたみ）
-        const [selY, selM] = selMonth.split('-');
-        let monthlySiteHtml = '';
-        if (siteAggList.length === 0) {
-          monthlySiteHtml = '<p class="empty-text" style="padding:12px;">この月の出勤記録はまだありません</p>';
-        } else {
-          let rows = '';
-          siteAggList.forEach(s => {
-            rows += `
-              <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-bottom:1px solid #1e293b;">
-                <div style="flex:1; min-width:0;">
-                  <div style="color:#e2e8f0; font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🏗️ ${s.name}</div>
-                  <div style="color:#94a3b8; font-size:11px; margin-top:2px;">☀️日勤 ${s.day} ／ 🌙夜勤 ${s.night} ／ 👤${s.people}名</div>
-                </div>
-                <div style="text-align:right; white-space:nowrap; margin-left:8px;">
-                  <span style="color:#5ad0ec; font-size:18px; font-weight:700;">${s.total}</span>
-                  <span style="color:#94a3b8; font-size:11px;"> 人日</span>
-                </div>
-              </div>
-            `;
-          });
-          const grandTotal = siteAggList.reduce((sum, s) => sum + s.total, 0);
-          monthlySiteHtml = `
-            <div style="background:#0f172a; border:1px solid #1e293b; border-radius:8px; overflow:hidden;">
-              ${rows}
-              <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:#1e293b;">
-                <span style="color:#e2e8f0; font-size:13px; font-weight:700;">合計（延べ）</span>
-                <span style="color:#5ad0ec; font-size:16px; font-weight:700;">${grandTotal} 人日</span>
-              </div>
-            </div>
-          `;
-        }
-
         return `
           <div class="header">
             <button id="backBtn" class="back-btn">← 戻る</button>
@@ -5513,16 +5453,6 @@
             </div>
             <button id="addAttendanceBtn" style="width: 100%; padding: 12px; margin-bottom: 16px; background: #22c55e; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer;">＋ 出勤記録を追加</button>
             ${gridHtml}
-            <!-- 【v3.1.0 ④】その月の現場別 延べ出勤日数 -->
-            <div style="margin-top:20px;">
-              <button id="toggleMonthlySiteBtn" style="width:100%; padding:12px; background:#1e293b; color:#e2e8f0; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
-                <span>📊 ${selY}年${parseInt(selM)}月 現場別 出勤日数</span>
-                <span id="monthlySiteArrow" style="font-size:12px;">▼</span>
-              </button>
-              <div id="monthlySiteBody" style="margin-top:8px;">
-                ${monthlySiteHtml}
-              </div>
-            </div>
           </div>
           <div id="attendanceDetailModal" class="attendance-detail-modal hidden">
             <div class="attendance-detail-content">
@@ -6047,6 +5977,55 @@
         const totalDays = dayShiftDays + nightShiftDays;
         const backView = isAdmin ? 'admin' : 'subadmin';
 
+        // 【v3.1.0 ④】選択中の従業員の、その月の「現場別 出勤日数」を集計
+        //   例: 松川さん → A現場5日(日勤4/夜勤1)、B現場3日 …
+        //   recordMap は既に「選択従業員・選択月」で絞り込み済みなので、これを現場名で集計する。
+        const empSiteAgg = {}; // { 現場名: {total, day, night} }
+        Object.keys(recordMap).forEach(function(day) {
+          recordMap[day].forEach(function(r) {
+            const key = r.jobSiteName || '（現場名なし）';
+            if (!empSiteAgg[key]) empSiteAgg[key] = { total: 0, day: 0, night: 0 };
+            empSiteAgg[key].total++;
+            if (r.shiftType === 'night') empSiteAgg[key].night++;
+            else empSiteAgg[key].day++;
+          });
+        });
+        // 日数の多い順に並べる
+        const empSiteAggList = Object.keys(empSiteAgg).map(function(name) {
+          return { name: name, total: empSiteAgg[name].total, day: empSiteAgg[name].day, night: empSiteAgg[name].night };
+        }).sort(function(a, b) { return b.total - a.total; });
+
+        // 現場別集計のHTML
+        let empSiteHtml = '';
+        if (empSiteAggList.length === 0) {
+          empSiteHtml = '<p class="empty-text" style="padding:12px; color:#94a3b8;">この月の出勤記録はありません</p>';
+        } else {
+          let siteRows = '';
+          empSiteAggList.forEach(function(s) {
+            siteRows += `
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-bottom:1px solid #1e293b;">
+                <div style="flex:1; min-width:0;">
+                  <div style="color:#e2e8f0; font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🏗️ ${s.name}</div>
+                  <div style="color:#94a3b8; font-size:11px; margin-top:2px;">☀️日勤 ${s.day}日 ／ 🌙夜勤 ${s.night}日</div>
+                </div>
+                <div style="text-align:right; white-space:nowrap; margin-left:8px;">
+                  <span style="color:#5ad0ec; font-size:18px; font-weight:700;">${s.total}</span>
+                  <span style="color:#94a3b8; font-size:11px;"> 日</span>
+                </div>
+              </div>
+            `;
+          });
+          empSiteHtml = `
+            <div style="background:#0f172a; border:1px solid #1e293b; border-radius:8px; overflow:hidden;">
+              ${siteRows}
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:#1e293b;">
+                <span style="color:#e2e8f0; font-size:13px; font-weight:700;">合計</span>
+                <span style="color:#5ad0ec; font-size:16px; font-weight:700;">${totalDays} 日</span>
+              </div>
+            </div>
+          `;
+        }
+
         // 【v3.1.0 ②】選択中の従業員・月の「確認完了」状態を取得
         //   従業員本人が history 画面で「確認完了」した状態を管理者側に表示する。
         const empHistConfKey = selectedEmpId + '_' + selectedMonth;
@@ -6120,6 +6099,11 @@
                 <span class="month-summary-label">合計</span>
                 <span class="month-summary-value">${totalDays}日</span>
               </div>
+            </div>
+            <!-- 【v3.1.0 ④】選択中の従業員の 現場別 出勤日数 -->
+            <div style="margin-bottom:16px;">
+              <div style="color:#94a3b8; font-size:13px; font-weight:600; margin-bottom:8px;">🏗️ 現場別 出勤日数</div>
+              ${empSiteHtml}
             </div>
             <div class="days-list" id="empHistoryDaysList">
               ${daysHtml}
@@ -8763,23 +8747,6 @@
             dateSelect.addEventListener('change', function() {
               App.selectedDate = this.value;
               self.render('dailyList');
-            });
-          }
-
-          // 【v3.1.0 ④】月間現場別集計の折りたたみ
-          const toggleMonthlySiteBtn = document.getElementById('toggleMonthlySiteBtn');
-          if (toggleMonthlySiteBtn) {
-            toggleMonthlySiteBtn.addEventListener('click', function() {
-              const body = document.getElementById('monthlySiteBody');
-              const arrow = document.getElementById('monthlySiteArrow');
-              if (!body) return;
-              if (body.style.display === 'none') {
-                body.style.display = '';
-                if (arrow) arrow.textContent = '▼';
-              } else {
-                body.style.display = 'none';
-                if (arrow) arrow.textContent = '▶';
-              }
             });
           }
 
