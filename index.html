@@ -3410,11 +3410,25 @@
               }
             }
             
+            // 【v3.1.0 ①-C】tombstone(削除済みid)に載っているレコードはマージ結果から除外
+            //   これにより「削除したのにマージで復活する」往復バグを止める。
+            //   ローカルとリモート双方のtombstoneを合算して適用。
+            const remoteTombstones = Array.isArray(remote.deletedRecordIds) ? remote.deletedRecordIds : [];
+            const localTombstones = Array.isArray(App.deletedRecordIds) ? App.deletedRecordIds : [];
+            const tombstoneSet = new Set([...remoteTombstones, ...localTombstones]);
+            for (const deadId of tombstoneSet) {
+              merged.delete(deadId);
+            }
+            const mergedTombstones = Array.from(tombstoneSet);
+            
             const finalRecords = Array.from(merged.values());
             
             // ---- 安全チェック: マージ後がリモートの95%未満なら異常 ----
-            if (remoteRecords.length > 5 && finalRecords.length < remoteRecords.length * 0.95) {
-              const msg = '[Firebase v3] 保護機能: マージ後records件数(' + finalRecords.length + ')がリモート(' + remoteRecords.length + ')の95%未満。保存中止';
+            // ※ tombstoneによる正当な削除分は減少して当然なので、
+            //   「リモート件数 - tombstone件数」を基準に判定する。
+            const expectedMin = Math.max(0, remoteRecords.length - tombstoneSet.size);
+            if (remoteRecords.length > 5 && finalRecords.length < expectedMin * 0.95) {
+              const msg = '[Firebase v3] 保護機能: マージ後records件数(' + finalRecords.length + ')が想定下限(' + expectedMin + ')の95%未満。保存中止';
               console.error(msg);
               throw new Error(msg);
             }
@@ -3424,12 +3438,14 @@
               employees: App.employees && App.employees.length > 0 ? App.employees : (remote.employees || []),
               jobSites: App.jobSites && App.jobSites.length > 0 ? App.jobSites : (remote.jobSites || []),
               records: finalRecords,
+              deletedRecordIds: mergedTombstones,
               corrections: App.corrections || remote.corrections || [],
               addressRequests: App.addressRequests || remote.addressRequests || [],
               overtimeRequests: App.overtimeRequests || remote.overtimeRequests || [],
               deletedEmployees: App.deletedEmployees || remote.deletedEmployees || [],
               siteDailyReports: App.siteDailyReports || remote.siteDailyReports || {},
               siteFinanceData: App.siteFinanceData || remote.siteFinanceData || {},
+              monthlyConfirmations: App.monthlyConfirmations !== undefined ? App.monthlyConfirmations : (remote.monthlyConfirmations || {}),
               announcement: App.announcement !== undefined ? App.announcement : (remote.announcement || null),
               lastUpdated: new Date().toISOString()
             });
@@ -3437,6 +3453,7 @@
             // ---- ローカル状態もマージ結果で更新（消えていた他端末の打刻が復活する）----
             App.records = finalRecords;
             App._firebaseRecordsCount = finalRecords.length;
+            App.deletedRecordIds = mergedTombstones;
             
             // 【v3.0.0】スナップショットを更新（次回save時の差分判定用）
             try {
@@ -3481,6 +3498,12 @@
           console.warn('[Firebase v3] DB未接続、LocalStorageのみで削除');
           App.records = App.records.filter(r => r.id !== recordId);
           Storage.set('records', App.records);
+          // 【v3.1.0 ①-C】DB未接続時もtombstoneに記録し、次回オンライン時の復活を防ぐ
+          try {
+            if (!Array.isArray(App.deletedRecordIds)) App.deletedRecordIds = [];
+            if (App.deletedRecordIds.indexOf(recordId) === -1) App.deletedRecordIds.push(recordId);
+            Storage.set('deletedRecordIds', App.deletedRecordIds);
+          } catch (_) {}
           return true;
         }
         
@@ -3501,16 +3524,28 @@
               throw new Error(msg);
             }
             
+            // 【v3.1.0 ①-C】tombstone(墓標)を記録
+            //   削除したidをdeletedRecordIdsに残すことで、他端末のマージ書き込みや
+            //   リアルタイム同期がこのレコードを「まだローカルにある」と誤認して
+            //   復活させてしまう往復バグを原理的に防ぐ。
+            const remoteTombstones = Array.isArray(remote.deletedRecordIds) ? remote.deletedRecordIds : [];
+            const tombstoneSet = new Set(remoteTombstones);
+            tombstoneSet.add(recordId);
+            const newTombstones = Array.from(tombstoneSet);
+            
             tx.update(docRef, {
               records: finalRecords,
+              deletedRecordIds: newTombstones,
               lastUpdated: new Date().toISOString()
             });
             
             App.records = finalRecords;
             App._firebaseRecordsCount = finalRecords.length;
+            App.deletedRecordIds = newTombstones;
             
             // 【v3.0.0】LocalStorageも更新（リロード時の整合性）
             try { Storage.set('records', App.records); } catch (_) {}
+            try { Storage.set('deletedRecordIds', App.deletedRecordIds); } catch (_) {}
             
             try {
               App._recordsSnapshot = {};
@@ -3519,7 +3554,7 @@
               }
             } catch (_) {}
             
-            console.log('[Firebase v3] deleteOneRecord 完了 id=' + recordId + ' before=' + remoteRecords.length + ' after=' + finalRecords.length);
+            console.log('[Firebase v3] deleteOneRecord 完了 id=' + recordId + ' before=' + remoteRecords.length + ' after=' + finalRecords.length + ' tombstones=' + newTombstones.length);
             return true;
           });
           
@@ -3551,6 +3586,15 @@
           if (data.deletedEmployees) App.deletedEmployees = data.deletedEmployees;
           if (data.siteDailyReports) App.siteDailyReports = data.siteDailyReports;
           if (data.siteFinanceData) App.siteFinanceData = data.siteFinanceData;
+          // 【v3.1.0 ①-C】tombstoneを取得し、records から削除済みidを除外（保険）
+          if (data.deletedRecordIds) App.deletedRecordIds = data.deletedRecordIds;
+          const _tombstones = Array.isArray(App.deletedRecordIds) ? new Set(App.deletedRecordIds) : new Set();
+          if (_tombstones.size > 0 && Array.isArray(App.records)) {
+            App.records = App.records.filter(r => r && !_tombstones.has(r.id));
+            App._firebaseRecordsCount = App.records.length;
+          }
+          // 【v3.1.0 ②】月次確認完了フラグを取得
+          if (data.monthlyConfirmations !== undefined) App.monthlyConfirmations = data.monthlyConfirmations || {};
           if (data.announcement !== undefined) App.announcement = data.announcement;
           
           // LocalStorageにキャッシュ（バックアップ目的）
@@ -3563,6 +3607,8 @@
           Storage.set('deletedEmployees', App.deletedEmployees);
           Storage.set('siteDailyReports', App.siteDailyReports);
           Storage.set('siteFinanceData', App.siteFinanceData);
+          try { Storage.set('deletedRecordIds', App.deletedRecordIds); } catch (_) {}
+          try { Storage.set('monthlyConfirmations', App.monthlyConfirmations); } catch (_) {}
           Storage.set('announcement', App.announcement);
           
           // 【v3.0.0】記録のスナップショットを取得（次回save時の差分判定に使用）
@@ -3604,6 +3650,11 @@
           const localRecords = Array.isArray(App.records) ? App.records : [];
           const now = Date.now();
           
+          // 【v3.1.0 ①-C】リモートのtombstone(削除済みid)を取得
+          const remoteTombstones = Array.isArray(data.deletedRecordIds) ? data.deletedRecordIds : [];
+          const localTombstones = Array.isArray(App.deletedRecordIds) ? App.deletedRecordIds : [];
+          const tombstoneSet = new Set([...remoteTombstones, ...localTombstones]);
+          
           // ---- records を id ベースで差分マージ ----
           const merged = new Map();
           
@@ -3617,6 +3668,8 @@
             if (!local || !local.id) continue;
             const existing = merged.get(local.id);
             if (!existing) {
+              // 【v3.1.0 ①-C】tombstoneにあるidは「削除済み」なので絶対に復活させない
+              if (tombstoneSet.has(local.id)) continue;
               // ローカルにのみある場合、1分以内なら「直近に打刻したばかりで反映待ち」とみなして保持
               const ts = new Date(local.updatedAt || local.clockInTime || local.addedAt || 0).getTime();
               if (now - ts < 60000) {
@@ -3631,6 +3684,11 @@
                 merged.set(local.id, local);
               }
             }
+          }
+          
+          // 【v3.1.0 ①-C】念のため、tombstoneに載っているidを最終的に全除去
+          for (const deadId of tombstoneSet) {
+            merged.delete(deadId);
           }
           
           const finalRecords = Array.from(merged.values());
@@ -3660,6 +3718,10 @@
           if (data.deletedEmployees) App.deletedEmployees = data.deletedEmployees;
           if (data.siteDailyReports) App.siteDailyReports = data.siteDailyReports;
           if (data.siteFinanceData) App.siteFinanceData = data.siteFinanceData;
+          // 【v3.1.0 ①-C】tombstoneはローカルとリモートを合算して保持（削除の取り消し防止）
+          App.deletedRecordIds = Array.from(tombstoneSet);
+          // 【v3.1.0 ②】月次確認完了フラグを受信
+          if (data.monthlyConfirmations !== undefined) App.monthlyConfirmations = data.monthlyConfirmations || {};
           if (data.announcement !== undefined) App.announcement = data.announcement;
           
           // LocalStorageキャッシュ
@@ -3672,6 +3734,8 @@
           Storage.set('deletedEmployees', App.deletedEmployees);
           Storage.set('siteDailyReports', App.siteDailyReports);
           Storage.set('siteFinanceData', App.siteFinanceData);
+          try { Storage.set('deletedRecordIds', App.deletedRecordIds); } catch (_) {}
+          try { Storage.set('monthlyConfirmations', App.monthlyConfirmations); } catch (_) {}
           Storage.set('announcement', App.announcement);
           
           console.log('[Firebase v3] リアルタイム更新受信 remote=' + remoteRecords.length + ' merged=' + finalRecords.length);
@@ -3822,8 +3886,8 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v3.0.0';
-    const APP_UPDATE_DATE = '2026/05/01';
+    const APP_VERSION = 'v3.1.0';
+    const APP_UPDATE_DATE = '2026/07/01';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
     }
@@ -3895,6 +3959,10 @@
       addressRequests: Storage.get('addressRequests', []),
       overtimeRequests: Storage.get('overtimeRequests', []),
       deletedEmployees: Storage.get('deletedEmployees', []),
+      // 【v3.1.0 ①-C】削除済みレコードのid一覧（tombstone/墓標）。削除の往復復活を防ぐ。
+      deletedRecordIds: Storage.get('deletedRecordIds', []),
+      // 【v3.1.0 ②】月次確認完了フラグ。キー: "従業員ID_YYYY-MM" → {confirmed, confirmedAt, confirmedBy}
+      monthlyConfirmations: Storage.get('monthlyConfirmations', {}),
       // 現場日報データ（日付_現場名をキーとして管理）
       siteDailyReports: Storage.get('siteDailyReports', {}),
       // 現場収支データ（現場ID_段階_月をキーとして管理）
@@ -3957,6 +4025,8 @@
         Storage.set('addressRequests', this.addressRequests);
         Storage.set('overtimeRequests', this.overtimeRequests);
         Storage.set('deletedEmployees', this.deletedEmployees);
+        Storage.set('deletedRecordIds', this.deletedRecordIds);
+        Storage.set('monthlyConfirmations', this.monthlyConfirmations);
         Storage.set('siteDailyReports', this.siteDailyReports);
         Storage.set('siteFinanceData', this.siteFinanceData);
         Storage.set('announcement', this.announcement);
@@ -4893,6 +4963,15 @@
             recordMap[day].push(r);
           });
         
+        // 【v3.1.0 ②】この画面で自分の記録を編集できるのは worker / parttime のみ。
+        //   （管理者・副管理者は従業員出勤履歴の専用画面を使うため、ここでは編集UIを出さない）
+        //   さらに「自分自身の記録」に限る（他人の記録は絶対に触らせない = ルール）。
+        const histCanEdit = (App.currentUser.role === 'worker' || App.currentUser.role === 'parttime');
+        // 確認完了フラグ
+        const histConfKey = App.currentUser.id + '_' + selectedMonth;
+        const histConf = (App.monthlyConfirmations && App.monthlyConfirmations[histConfKey]) || null;
+        const histIsConfirmed = !!(histConf && histConf.confirmed);
+
         // 出勤日数をカウント（日勤・夜勤別）
         let dayShiftDays = 0;
         let nightShiftDays = 0;
@@ -4907,6 +4986,7 @@
           const isSunday = dayOfWeek === 0;
           const isSaturday = dayOfWeek === 6;
           const dateStr = `${month}/${day}（${weekdayStr}）`;
+          const fullDateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
           
           const dayRecords = recordMap[day] || [];
           
@@ -4939,6 +5019,8 @@
               const shiftLabel = isNight ? '夜勤' : '日勤';
               // 正社員(worker)は時刻・実働時間を非表示
               const showTimes = App.currentUser.role === 'parttime' || App.currentUser.role === 'admin' || App.currentUser.role === 'subadmin';
+              // 【v3.1.0 ②】時刻なし記録(noTime/本人の自己申告)は時刻欄を出さず「自己申告」と表示
+              const isNoTime = r.noTime === true || (!r.clockInTime && !r.clockOutTime);
               const timeStr = showTimes ? App.formatTime(r.clockInTime) + '〜' + (r.clockOutTime ? App.formatTime(r.clockOutTime) : '勤務中') : '';
               let hoursStr = '';
               if (showTimes && r.workHours) {
@@ -4947,10 +5029,20 @@
                 const actualMinutes = Math.max(0, totalMinutes - breakMinutes);
                 hoursStr = `（実働 ${formatMinutes(actualMinutes)}）`;
               }
+              // 時刻欄の中身: 時刻なし記録なら「自己申告」バッジ、それ以外は従来の時刻
+              const timeLineHtml = isNoTime
+                ? '<div class="day-time" style="color:#94a3b8; font-size:11px;">自己申告（時刻なし）</div>'
+                : (showTimes ? '<div class="day-time">' + timeStr + hoursStr + '</div>' : '');
+              // 【v3.1.0 ②】自分の記録かつ編集可能ロールなら削除ボタンを表示
+              //   （確認完了後は編集不可にして、確定済みデータを保護）
+              const canDeleteThis = histCanEdit && !histIsConfirmed && r.employeeId === App.currentUser.id;
               statusHtml += `
-                <div class="day-record">
-                  <div class="day-site">${shiftLabel} / ${r.jobSiteName}</div>
-                  ${showTimes ? '<div class="day-time">' + timeStr + hoursStr + '</div>' : ''}
+                <div class="day-record" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                  <div style="flex:1;">
+                    <div class="day-site">${shiftLabel} / ${r.jobSiteName}</div>
+                    ${timeLineHtml}
+                  </div>
+                  ${canDeleteThis ? `<button class="hist-del-btn" data-record-id="${r.id}" style="padding:5px 10px; background:#ef4444; color:#fff; border:none; border-radius:4px; font-size:11px; cursor:pointer; white-space:nowrap;">削除</button>` : ''}
                 </div>
               `;
             });
@@ -4958,15 +5050,54 @@
             statusHtml = `<span class="day-off">休み</span>`;
           }
           
+          // 【v3.1.0 ②】自分の記録を追加するボタン（編集可能ロール & 未確認のときのみ）
+          let addBtnHtml = '';
+          if (histCanEdit && !histIsConfirmed) {
+            addBtnHtml = `<button class="hist-add-btn" data-date="${fullDateStr}" style="padding:4px 10px; background:#22c55e; color:#fff; border:none; border-radius:4px; font-size:11px; cursor:pointer; margin-top:6px;">＋出勤を追加</button>`;
+          }
+          
           daysHtml += `
             <div class="day-row ${isSunday ? 'sunday' : ''} ${isSaturday ? 'saturday' : ''} ${dayRecords.length > 0 ? 'worked' : ''}">
               <div class="day-date">${dateStr}</div>
-              <div class="day-status">${statusHtml}</div>
+              <div class="day-status">${statusHtml}${addBtnHtml}</div>
             </div>
           `;
         }
         
         const totalDays = dayShiftDays + nightShiftDays;
+
+        // 【v3.1.0 ②】確認完了エリアのHTML
+        let histConfirmAreaHtml = '';
+        if (histCanEdit) {
+          // 前月の年月を算出（当月5日期限の注意喚起用）
+          const nowForDeadline = new Date();
+          const prevMonthDate = new Date(nowForDeadline.getFullYear(), nowForDeadline.getMonth() - 1, 1);
+          const prevMonthStr = prevMonthDate.getFullYear() + '-' + String(prevMonthDate.getMonth() + 1).padStart(2, '0');
+          const todayDate = nowForDeadline.getDate();
+
+          if (histIsConfirmed) {
+            const cAt = histConf.confirmedAt ? new Date(histConf.confirmedAt) : null;
+            const cAtStr = cAt ? `${cAt.getMonth() + 1}/${cAt.getDate()} ${String(cAt.getHours()).padStart(2,'0')}:${String(cAt.getMinutes()).padStart(2,'0')}` : '';
+            histConfirmAreaHtml = `
+              <div style="background:#dcfce7; border:1px solid #22c55e; border-radius:12px; padding:16px; margin-bottom:16px;">
+                <p style="color:#166534; font-weight:700; margin:0 0 6px 0;">✅ この月の出勤確認は完了しています</p>
+                <p style="color:#166534; font-size:12px; margin:0 0 12px 0;">確認日時: ${cAtStr}${histConf.confirmedBy ? '（' + histConf.confirmedBy + '）' : ''}</p>
+                <button id="histUnconfirmBtn" style="padding:8px 16px; background:#fff; color:#166534; border:1px solid #22c55e; border-radius:8px; font-size:13px; cursor:pointer;">確認を取り消して修正する</button>
+              </div>
+            `;
+          } else {
+            // 前月かつ当月5日を過ぎている場合は強めの警告
+            const isPrevMonth = (selectedMonth === prevMonthStr);
+            const overdue = isPrevMonth && todayDate > 5;
+            histConfirmAreaHtml = `
+              <div style="background:${overdue ? '#fee2e2' : '#fef3c7'}; border:1px solid ${overdue ? '#ef4444' : '#f59e0b'}; border-radius:12px; padding:16px; margin-bottom:16px;">
+                <p style="color:${overdue ? '#991b1b' : '#92400e'}; font-weight:700; margin:0 0 6px 0;">${overdue ? '⚠️ 前月分の確認期限（当月5日）を過ぎています' : '📝 1日〜末日の出勤を確認してください'}</p>
+                <p style="color:${overdue ? '#991b1b' : '#92400e'}; font-size:12px; margin:0 0 12px 0;">間違いや抜けがあれば「＋出勤を追加」「削除」で直してから、下のボタンで確認完了にしてください。${isPrevMonth ? '（前月分は当月5日までに確認）' : ''}</p>
+                <button id="histConfirmBtn" style="padding:10px 20px; background:${overdue ? '#ef4444' : '#f59e0b'}; color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">この月の確認を完了する</button>
+              </div>
+            `;
+          }
+        }
 
         return `
           <div class="header">
@@ -4993,6 +5124,7 @@
                 <span class="month-summary-value">${totalDays}日</span>
               </div>
             </div>
+            ${histConfirmAreaHtml}
             <div class="days-list">
               ${daysHtml}
             </div>
@@ -5308,6 +5440,66 @@
           records.some(r => r.employeeId === emp.id)
         ).length;
 
+        // 【v3.1.0 ④】選択日が属する「その月」の現場別 延べ出勤日数（人日）を集計
+        //   例: A現場に月内で延べ12人日（日勤10・夜勤2）など。
+        //   プライベート従業員は副管理者には集計させない（既存の可視性ルールに合わせる）。
+        const selMonth = (App.selectedDate || '').slice(0, 7); // "YYYY-MM"
+        let monthRecordsForSite = App.records.filter(r => r.workDate && r.workDate.startsWith(selMonth));
+        if (!isAdmin) {
+          monthRecordsForSite = monthRecordsForSite.filter(r => !privateIds.includes(r.employeeId));
+        }
+        // 現場名ごとに集計
+        const siteAgg = {}; // { 現場名: {total, day, night, empSet:Set} }
+        monthRecordsForSite.forEach(r => {
+          const key = r.jobSiteName || '（現場名なし）';
+          if (!siteAgg[key]) siteAgg[key] = { total: 0, day: 0, night: 0, empSet: new Set() };
+          siteAgg[key].total++;
+          if (r.shiftType === 'night') siteAgg[key].night++;
+          else siteAgg[key].day++;
+          if (r.employeeId) siteAgg[key].empSet.add(r.employeeId);
+        });
+        // 延べ人日の多い順に並べる
+        const siteAggList = Object.keys(siteAgg).map(name => ({
+          name: name,
+          total: siteAgg[name].total,
+          day: siteAgg[name].day,
+          night: siteAgg[name].night,
+          people: siteAgg[name].empSet.size
+        })).sort((a, b) => b.total - a.total);
+
+        // 月間現場別集計のHTML（折りたたみ）
+        const [selY, selM] = selMonth.split('-');
+        let monthlySiteHtml = '';
+        if (siteAggList.length === 0) {
+          monthlySiteHtml = '<p class="empty-text" style="padding:12px;">この月の出勤記録はまだありません</p>';
+        } else {
+          let rows = '';
+          siteAggList.forEach(s => {
+            rows += `
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-bottom:1px solid #1e293b;">
+                <div style="flex:1; min-width:0;">
+                  <div style="color:#e2e8f0; font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🏗️ ${s.name}</div>
+                  <div style="color:#94a3b8; font-size:11px; margin-top:2px;">☀️日勤 ${s.day} ／ 🌙夜勤 ${s.night} ／ 👤${s.people}名</div>
+                </div>
+                <div style="text-align:right; white-space:nowrap; margin-left:8px;">
+                  <span style="color:#5ad0ec; font-size:18px; font-weight:700;">${s.total}</span>
+                  <span style="color:#94a3b8; font-size:11px;"> 人日</span>
+                </div>
+              </div>
+            `;
+          });
+          const grandTotal = siteAggList.reduce((sum, s) => sum + s.total, 0);
+          monthlySiteHtml = `
+            <div style="background:#0f172a; border:1px solid #1e293b; border-radius:8px; overflow:hidden;">
+              ${rows}
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:#1e293b;">
+                <span style="color:#e2e8f0; font-size:13px; font-weight:700;">合計（延べ）</span>
+                <span style="color:#5ad0ec; font-size:16px; font-weight:700;">${grandTotal} 人日</span>
+              </div>
+            </div>
+          `;
+        }
+
         return `
           <div class="header">
             <button id="backBtn" class="back-btn">← 戻る</button>
@@ -5321,6 +5513,16 @@
             </div>
             <button id="addAttendanceBtn" style="width: 100%; padding: 12px; margin-bottom: 16px; background: #22c55e; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer;">＋ 出勤記録を追加</button>
             ${gridHtml}
+            <!-- 【v3.1.0 ④】その月の現場別 延べ出勤日数 -->
+            <div style="margin-top:20px;">
+              <button id="toggleMonthlySiteBtn" style="width:100%; padding:12px; background:#1e293b; color:#e2e8f0; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                <span>📊 ${selY}年${parseInt(selM)}月 現場別 出勤日数</span>
+                <span id="monthlySiteArrow" style="font-size:12px;">▼</span>
+              </button>
+              <div id="monthlySiteBody" style="margin-top:8px;">
+                ${monthlySiteHtml}
+              </div>
+            </div>
           </div>
           <div id="attendanceDetailModal" class="attendance-detail-modal hidden">
             <div class="attendance-detail-content">
@@ -5727,7 +5929,14 @@
         // 従業員セレクトボックス
         let empOptions = '';
         employees.forEach(emp => {
-          empOptions += `<option value="${emp.id}" ${emp.id === selectedEmpId ? 'selected' : ''}>${emp.name}</option>`;
+          // 【v3.1.0 ②】worker/parttime は選択月の確認状態をマークで表示（✅完了 / ⏳未完了）
+          let mark = '';
+          if (emp.role === 'worker' || emp.role === 'parttime') {
+            const _k = emp.id + '_' + selectedMonth;
+            const _c = (App.monthlyConfirmations && App.monthlyConfirmations[_k]) || null;
+            mark = (_c && _c.confirmed) ? '✅ ' : '⏳ ';
+          }
+          empOptions += `<option value="${emp.id}" ${emp.id === selectedEmpId ? 'selected' : ''}>${mark}${emp.name}</option>`;
         });
         
         // 月セレクトボックス（過去7年=84ヶ月）
@@ -5838,6 +6047,51 @@
         const totalDays = dayShiftDays + nightShiftDays;
         const backView = isAdmin ? 'admin' : 'subadmin';
 
+        // 【v3.1.0 ②】選択中の従業員・月の「確認完了」状態を取得
+        //   従業員本人が history 画面で「確認完了」した状態を管理者側に表示する。
+        const empHistConfKey = selectedEmpId + '_' + selectedMonth;
+        const empHistConf = (App.monthlyConfirmations && App.monthlyConfirmations[empHistConfKey]) || null;
+        const empHistIsConfirmed = !!(empHistConf && empHistConf.confirmed);
+
+        // 確認完了バナーHTML（選択中の従業員が worker / parttime のときのみ意味を持つ）
+        let confStatusHtml = '';
+        {
+          const selEmp = employees.find(e => e.id === selectedEmpId);
+          const selEmpEditable = selEmp && (selEmp.role === 'worker' || selEmp.role === 'parttime');
+          if (selEmpEditable) {
+            // 当月5日期限の判定（選択月が前月で、今日が当月6日以降なら期限超過）
+            const _now = new Date();
+            const _prev = new Date(_now.getFullYear(), _now.getMonth() - 1, 1);
+            const _prevStr = _prev.getFullYear() + '-' + String(_prev.getMonth() + 1).padStart(2, '0');
+            const isPrevMonthSel = (selectedMonth === _prevStr);
+            const overdue = isPrevMonthSel && _now.getDate() > 5 && !empHistIsConfirmed;
+
+            if (empHistIsConfirmed) {
+              const cAt = empHistConf.confirmedAt ? new Date(empHistConf.confirmedAt) : null;
+              const cAtStr = cAt ? `${cAt.getMonth() + 1}/${cAt.getDate()} ${String(cAt.getHours()).padStart(2,'0')}:${String(cAt.getMinutes()).padStart(2,'0')}` : '';
+              confStatusHtml = `
+                <div style="background:#dcfce7; border:1px solid #22c55e; border-radius:10px; padding:12px 14px; margin-bottom:12px; display:flex; align-items:center; gap:10px;">
+                  <span style="font-size:20px;">✅</span>
+                  <div>
+                    <div style="color:#166534; font-weight:700; font-size:14px;">本人の出勤確認：完了</div>
+                    <div style="color:#166534; font-size:12px;">確認日時 ${cAtStr}${empHistConf.confirmedBy ? '（' + empHistConf.confirmedBy + '）' : ''}</div>
+                  </div>
+                </div>
+              `;
+            } else {
+              confStatusHtml = `
+                <div style="background:${overdue ? '#fee2e2' : '#fef3c7'}; border:1px solid ${overdue ? '#ef4444' : '#f59e0b'}; border-radius:10px; padding:12px 14px; margin-bottom:12px; display:flex; align-items:center; gap:10px;">
+                  <span style="font-size:20px;">${overdue ? '⚠️' : '⏳'}</span>
+                  <div>
+                    <div style="color:${overdue ? '#991b1b' : '#92400e'}; font-weight:700; font-size:14px;">本人の出勤確認：未完了${overdue ? '（期限超過）' : ''}</div>
+                    <div style="color:${overdue ? '#991b1b' : '#92400e'}; font-size:12px;">${overdue ? '前月分の確認期限（当月5日）を過ぎています' : 'この従業員はまだ確認を完了していません'}</div>
+                  </div>
+                </div>
+              `;
+            }
+          }
+        }
+
         return `
           <div class="header">
             <button id="backBtn" class="back-btn" data-view="${backView}">← 戻る</button>
@@ -5852,6 +6106,7 @@
                 ${monthOptions}
               </select>
             </div>
+            ${confStatusHtml}
             <div class="month-summary">
               <div class="month-summary-item">
                 <span class="month-summary-label">☀️ 日勤</span>
@@ -6068,7 +6323,7 @@
             <div style="background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
               <p style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">💡 操作説明</p>
               <p style="font-size: 12px; color: #64748b;">・<b>統合</b>: この現場を別の現場に統合（勤怠記録・収支データも移行）</p>
-              <p style="font-size: 12px; color: #64748b;">・<b>削除</b>: この現場を削除（勤怠記録がある場合は削除不可）</p>
+              <p style="font-size: 12px; color: #64748b;">・<b>削除</b>: この現場をリストから削除（過去の勤怠記録・集計は残ります）</p>
             </div>
             ${sitesHtml}
           </div>
@@ -7108,6 +7363,208 @@
               self.render('history');
             });
           }
+
+          // 【v3.1.0 ②】自分の記録を編集できるのは worker / parttime のみ（自分の記録に限る = ルール）
+          const histCanEdit = (App.currentUser.role === 'worker' || App.currentUser.role === 'parttime');
+
+          // 現在選択中の月（history: function 側と同じ算出）
+          const _nowDate = new Date();
+          const _currentMonth = _nowDate.getFullYear() + '-' + String(_nowDate.getMonth() + 1).padStart(2, '0');
+          const histSelectedMonth = App.historyMonth || _currentMonth;
+          const histConfKey = App.currentUser.id + '_' + histSelectedMonth;
+
+          if (histCanEdit) {
+            // ---- ＋出勤を追加ボタン（時刻なし・日勤/夜勤＋現場のみ）----
+            document.querySelectorAll('.hist-add-btn').forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                const workDate = this.getAttribute('data-date');
+
+                // 確認完了済みなら追加不可（確定データ保護）
+                const conf = (App.monthlyConfirmations && App.monthlyConfirmations[histConfKey]) || null;
+                if (conf && conf.confirmed) {
+                  alert('この月は確認完了済みです。\n修正するには先に「確認を取り消して修正する」を押してください。');
+                  return;
+                }
+
+                // 現場オプション（有効な現場のみ）
+                let siteOptions = '<option value="">-- 現場を選択 --</option>';
+                App.jobSites.filter(function(s) { return s.isActive; }).forEach(function(site) {
+                  siteOptions += '<option value="' + site.id + '">' + site.name + '</option>';
+                });
+
+                const modalHtml = ''
+                  + '<div class="modal-overlay" id="histAddModal">'
+                  + '  <div class="modal-content">'
+                  + '    <div class="modal-title">📝 出勤を追加</div>'
+                  + '    <div class="modal-info">'
+                  + '      <div class="modal-info-row"><span class="modal-info-label">対象日</span><span class="modal-info-value">' + workDate + '</span></div>'
+                  + '    </div>'
+                  + '    <div class="modal-form-group">'
+                  + '      <label class="modal-label">現場</label>'
+                  + '      <select id="histAddSite" class="modal-select">' + siteOptions + '</select>'
+                  + '    </div>'
+                  + '    <div class="modal-form-group">'
+                  + '      <label class="modal-label">日勤 / 夜勤</label>'
+                  + '      <select id="histAddShift" class="modal-select">'
+                  + '        <option value="day">☀️ 日勤</option>'
+                  + '        <option value="night">🌙 夜勤</option>'
+                  + '      </select>'
+                  + '    </div>'
+                  + '    <div class="modal-buttons">'
+                  + '      <button class="modal-btn modal-btn-cancel" id="histAddCancel">キャンセル</button>'
+                  + '      <button class="modal-btn modal-btn-success" id="histAddSubmit">追加する</button>'
+                  + '    </div>'
+                  + '  </div>'
+                  + '</div>';
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                document.getElementById('histAddCancel').addEventListener('click', function() {
+                  const m = document.getElementById('histAddModal');
+                  if (m) m.remove();
+                });
+
+                document.getElementById('histAddSubmit').addEventListener('click', function() {
+                  if (this.disabled) return;
+                  const siteId = document.getElementById('histAddSite').value;
+                  const shiftType = document.getElementById('histAddShift').value;
+
+                  if (!siteId) {
+                    alert('現場を選択してください');
+                    return;
+                  }
+                  const site = App.jobSites.find(function(s) { return s.id === siteId; });
+                  if (!site) {
+                    alert('現場が見つかりません');
+                    return;
+                  }
+
+                  this.disabled = true;
+                  this.textContent = '追加中...';
+
+                  // 時刻なしの記録。集計は日勤/夜勤の「日数」だけを見るため clockInTime/clockOutTime は null。
+                  // ただし並び順・重複IDを避けるため一意なidを付与。
+                  const newRecord = {
+                    id: Date.now().toString() + '_' + Math.random().toString(36).slice(2, 7),
+                    employeeId: App.currentUser.id,
+                    employeeName: App.currentUser.name,
+                    jobSiteId: site.id,
+                    jobSiteName: site.name,
+                    workDate: workDate,
+                    clockInTime: null,
+                    clockOutTime: null,
+                    shiftType: shiftType,
+                    workHours: null,
+                    status: 'completed',
+                    memo: '',
+                    noTime: true,                    // 時刻なし記録の目印
+                    addedBy: App.currentUser.name,
+                    addedBySelf: true,               // 本人が自己申告で追加した記録
+                    addedAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  };
+
+                  App.records.push(newRecord);
+                  App.save();
+                  const m = document.getElementById('histAddModal');
+                  if (m) m.remove();
+                  self.render('history');
+                });
+              });
+            });
+
+            // ---- 削除ボタン（自分の記録のみ・tombstone付きトランザクション削除）----
+            document.querySelectorAll('.hist-del-btn').forEach(function(btn) {
+              btn.addEventListener('click', async function() {
+                const recordId = this.getAttribute('data-record-id');
+                const rec = App.records.find(function(r) { return r.id === recordId; });
+                if (!rec) return;
+
+                // 二重の安全確認: 本当に自分の記録か
+                if (rec.employeeId !== App.currentUser.id) {
+                  alert('自分の記録のみ削除できます');
+                  return;
+                }
+
+                // 確認完了済みなら削除不可
+                const conf = (App.monthlyConfirmations && App.monthlyConfirmations[histConfKey]) || null;
+                if (conf && conf.confirmed) {
+                  alert('この月は確認完了済みです。\n修正するには先に「確認を取り消して修正する」を押してください。');
+                  return;
+                }
+
+                if (!confirm('この出勤記録を削除しますか？\n\n' + rec.workDate + '\n' + (rec.shiftType === 'night' ? '夜勤' : '日勤') + ' / ' + rec.jobSiteName + '\n\nこの操作は取り消せません。')) {
+                  return;
+                }
+
+                if (this.disabled) return;
+                this.disabled = true;
+                const originalText = this.textContent;
+                this.textContent = '削除中...';
+
+                const success = await FirebaseSync.deleteOneRecord(recordId);
+                if (!success) {
+                  this.disabled = false;
+                  this.textContent = originalText;
+                  return;
+                }
+
+                self.render('history');
+              });
+            });
+
+            // ---- 確認完了ボタン ----
+            const histConfirmBtn = document.getElementById('histConfirmBtn');
+            if (histConfirmBtn) {
+              histConfirmBtn.addEventListener('click', function() {
+                if (this.disabled) return;
+
+                if (!confirm(histSelectedMonth.replace('-', '年') + '月の出勤内容を確認完了にします。\n\n完了後はこの月の追加・削除ができなくなります（取り消しは可能）。\nよろしいですか？')) {
+                  return;
+                }
+
+                this.disabled = true;
+                this.textContent = '処理中...';
+
+                if (!App.monthlyConfirmations) App.monthlyConfirmations = {};
+                App.monthlyConfirmations[histConfKey] = {
+                  confirmed: true,
+                  confirmedAt: new Date().toISOString(),
+                  confirmedBy: App.currentUser.name
+                };
+                App.save();
+                alert('確認完了として記録しました。\nお疲れさまでした。');
+                self.render('history');
+              });
+            }
+
+            // ---- 確認取り消しボタン ----
+            const histUnconfirmBtn = document.getElementById('histUnconfirmBtn');
+            if (histUnconfirmBtn) {
+              histUnconfirmBtn.addEventListener('click', function() {
+                if (this.disabled) return;
+
+                if (!confirm('この月の確認完了を取り消しますか？\n\n取り消すと再び追加・削除ができるようになります。')) {
+                  return;
+                }
+
+                this.disabled = true;
+                this.textContent = '処理中...';
+
+                if (!App.monthlyConfirmations) App.monthlyConfirmations = {};
+                if (App.monthlyConfirmations[histConfKey]) {
+                  App.monthlyConfirmations[histConfKey] = {
+                    confirmed: false,
+                    confirmedAt: App.monthlyConfirmations[histConfKey].confirmedAt || null,
+                    confirmedBy: App.monthlyConfirmations[histConfKey].confirmedBy || null,
+                    unconfirmedAt: new Date().toISOString()
+                  };
+                }
+                App.save();
+                self.render('history');
+              });
+            }
+          }
         }
 
         // 従業員出勤履歴（管理者・副管理者用）
@@ -7494,16 +7951,28 @@
               });
               
               // 削除ボタン
-              document.getElementById('editRecordDelete').addEventListener('click', function() {
+              // 【v3.1.0 ①-A修正】splice+App.save() のマージ方式は削除が復活するバグがあったため
+              //   FirebaseSync.deleteOneRecord() によるトランザクション削除+tombstoneに統一
+              document.getElementById('editRecordDelete').addEventListener('click', async function() {
                 if (confirm(`本当にこの記録を削除しますか？\n\n${record.workDate} ${record.jobSiteName}`)) {
-                  const idx = App.records.findIndex(r => r.id === recordId);
-                  if (idx !== -1) {
-                    App.records.splice(idx, 1);
-                    App.save();
-                    document.getElementById('editRecordModal').remove();
-                    alert('記録を削除しました');
-                    self.render('employeeHistory');
+                  // 二重クリック防止
+                  if (this.disabled) return;
+                  this.disabled = true;
+                  const originalText = this.textContent;
+                  this.textContent = '削除中...';
+
+                  const success = await FirebaseSync.deleteOneRecord(recordId);
+
+                  if (!success) {
+                    this.disabled = false;
+                    this.textContent = originalText;
+                    return;
                   }
+
+                  const modal = document.getElementById('editRecordModal');
+                  if (modal) modal.remove();
+                  alert('記録を削除しました');
+                  self.render('employeeHistory');
                 }
               });
             });
@@ -8294,6 +8763,23 @@
             dateSelect.addEventListener('change', function() {
               App.selectedDate = this.value;
               self.render('dailyList');
+            });
+          }
+
+          // 【v3.1.0 ④】月間現場別集計の折りたたみ
+          const toggleMonthlySiteBtn = document.getElementById('toggleMonthlySiteBtn');
+          if (toggleMonthlySiteBtn) {
+            toggleMonthlySiteBtn.addEventListener('click', function() {
+              const body = document.getElementById('monthlySiteBody');
+              const arrow = document.getElementById('monthlySiteArrow');
+              if (!body) return;
+              if (body.style.display === 'none') {
+                body.style.display = '';
+                if (arrow) arrow.textContent = '▼';
+              } else {
+                body.style.display = 'none';
+                if (arrow) arrow.textContent = '▶';
+              }
             });
           }
 
@@ -9119,15 +9605,24 @@
               // 勤怠記録があるかチェック
               const recordCount = App.records.filter(r => r.jobSiteId === siteId || r.jobSiteName === siteName).length;
               
+              // 【v3.1.0 ③】記録があってもリストから削除できるように変更。
+              //   （現場リストが増えすぎる問題への対応）
+              //   ※ 過去の勤怠記録は jobSiteName(文字列)を各レコードが保持しているため、
+              //     現場マスタから消えても履歴・集計の表示は壊れない。
+              //   ※ 記録がある場合は誤操作防止のため件数を明示して二段階で確認する。
               if (recordCount > 0) {
-                alert(
-                  `この現場には ${recordCount}件 の勤怠記録があるため削除できません。\n\n` +
-                  `削除したい場合は、先に「統合」で別の現場に統合してください。`
-                );
-                return;
+                if (!confirm(
+                  `「${siteName}」には ${recordCount}件 の勤怠記録があります。\n\n` +
+                  `この現場を現場マスタから削除しますか？\n\n` +
+                  `✅ 過去の勤怠記録・集計はそのまま残ります（現場名は記録に保存済み）\n` +
+                  `✅ 出退勤の現場選択リストから消えます\n` +
+                  `⚠️ この現場への新規の紐付けはできなくなります`
+                )) return;
+
+                if (!confirm(`本当に「${siteName}」を削除してよろしいですか？\n（記録 ${recordCount}件 は残ります）`)) return;
+              } else {
+                if (!confirm(`「${siteName}」を削除しますか？`)) return;
               }
-              
-              if (!confirm(`「${siteName}」を削除しますか？`)) return;
               
               // 日報データも削除
               if (App.siteDailyReports && App.siteDailyReports[siteName]) {
@@ -9143,7 +9638,7 @@
               App.jobSites = App.jobSites.filter(s => s.id !== siteId);
               
               App.save();
-              alert(`「${siteName}」を削除しました`);
+              alert(`「${siteName}」を削除しました${recordCount > 0 ? '\n（過去の勤怠記録 ' + recordCount + '件 は保持されています）' : ''}`);
               self.render('siteMaster');
             });
           });
