@@ -3647,6 +3647,7 @@
             App.records = App.records.filter(r => r && !_tombstones.has(r.id));
             App._firebaseRecordsCount = App.records.length;
           }
+          App.sanitizeRecords('クラウド同期');
           // 【v3.1.0 ②】月次確認完了フラグを取得
           if (data.monthlyConfirmations !== undefined) App.monthlyConfirmations = data.monthlyConfirmations || {};
           if (data.announcement !== undefined) App.announcement = data.announcement;
@@ -3938,7 +3939,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v3.2.0';
+    const APP_VERSION = 'v3.2.1';
     const APP_UPDATE_DATE = '2026/07/04';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -4285,6 +4286,20 @@
       },
       
       // 表示可能な勤怠記録を取得
+      // 【v3.2.1】壊れた勤怠レコード（null要素・必須フィールド欠落）を表示から除外する。
+      //   オフライン合算・旧形式・キャッシュ破損などで不完全なレコードが1件混入しただけで
+      //   管理画面全体が開けなくなる事故を防ぐ（元データは書き換えず、表示から外すだけ）。
+      sanitizeRecords: function(warnLabel) {
+        if (!Array.isArray(this.records)) { this.records = []; return 0; }
+        const before = this.records.length;
+        this.records = this.records.filter(r => r && r.id && r.employeeId && r.workDate);
+        const removed = before - this.records.length;
+        if (removed > 0 && warnLabel) {
+          console.warn('[v3.2.1] 不完全な勤怠レコード ' + removed + ' 件を表示から除外しました（' + warnLabel + '）');
+        }
+        return removed;
+      },
+
       getVisibleRecords: function() {
         // プライベート従業員ID（ハードコード）
         const PRIVATE_IDS = ['10', '11'];
@@ -4493,6 +4508,7 @@
     // 画面描画
     const Views = {
       render: function(view) {
+        App.sanitizeRecords();
         App.currentView = view;
         const app = document.getElementById('app');
         app.innerHTML = this[view] ? this[view]() : this.login();
@@ -5528,7 +5544,7 @@
             
             // 最新の現場名を短縮表示
             const latestRecord = empRecords[empRecords.length - 1];
-            const siteName = latestRecord.jobSiteName;
+            const siteName = latestRecord.jobSiteName || '（現場名なし）'; // 【v3.2.1】現場名欠落レコードでも一覧を落とさない
             const shortSiteName = siteName.length > 6 ? siteName.substring(0, 6) + '…' : siteName;
             
             gridHtml += `
@@ -5976,9 +5992,11 @@
         });
         
         // 月セレクトボックス（過去7年=84ヶ月）
+        // 【v3.2.1】JST基準のcurrentMonthを起点に遡る（v3.2.0でnowDate宣言を削除した際の参照消し忘れを修正）
         let monthOptions = '';
+        const [_cy, _cm] = currentMonth.split('-').map(Number);
         for (let i = 0; i < 84; i++) {
-          const d = new Date(nowDate.getFullYear(), nowDate.getMonth() - i, 1);
+          const d = new Date(_cy, _cm - 1 - i, 1);
           const m = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
           const label = `${d.getFullYear()}年${d.getMonth() + 1}月`;
           monthOptions += `<option value="${m}" ${m === selectedMonth ? 'selected' : ''}>${label}</option>`;
