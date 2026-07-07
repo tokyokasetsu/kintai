@@ -17,6 +17,7 @@
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <style>
     * {
       margin: 0;
@@ -3263,6 +3264,21 @@
       '2026-11-23': '勤労感謝の日'
     };
 
+    // ===========================================================================
+    // 【v3.2.0】HTMLエスケープ（格納型XSS対策）
+    //   現場名・従業員名・メモ・お知らせ等、ユーザー入力由来の文字列を
+    //   innerHTMLテンプレートへ挿入する際は必ず esc() を通すこと。
+    // ===========================================================================
+    function esc(v) {
+      if (v === null || v === undefined) return '';
+      return String(v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     // アクセスパスワード
     const ACCESS_PASSWORD = 'Tokyo4555';
 
@@ -3579,7 +3595,38 @@
           // Firebaseのデータで上書き（Firebaseが正）
           if (data.employees && data.employees.length > 0) App.employees = data.employees;
           if (data.jobSites && data.jobSites.length > 0) App.jobSites = data.jobSites;
-          if (data.records) App.records = data.records;
+          // 【v3.2.0】recordsは「リモート優先＋未アップロードのローカル打刻を保持」でマージ
+          //   旧: 完全上書きだったため、オフライン中の打刻が次回起動時に消失していた。
+          //   削除済みかどうかの判定はtombstone(deletedRecordIds)が担う。
+          if (data.records) {
+            const remoteRecords = Array.isArray(data.records) ? data.records : [];
+            const localRecords = Array.isArray(App.records) ? App.records : [];
+            const tombSet = new Set([].concat(
+              Array.isArray(data.deletedRecordIds) ? data.deletedRecordIds : [],
+              Array.isArray(App.deletedRecordIds) ? App.deletedRecordIds : []
+            ));
+            const map = new Map();
+            for (const r of remoteRecords) { if (r && r.id) map.set(r.id, r); }
+            let localOnlyCount = 0;
+            for (const l of localRecords) {
+              if (!l || !l.id || tombSet.has(l.id)) continue;
+              const ex = map.get(l.id);
+              if (!ex) {
+                map.set(l.id, l);
+                localOnlyCount++;
+              } else {
+                const lt = new Date(l.updatedAt || l.clockInTime || l.addedAt || 0).getTime();
+                const rt = new Date(ex.updatedAt || ex.clockInTime || ex.addedAt || 0).getTime();
+                if (lt > rt) map.set(l.id, l);
+              }
+            }
+            tombSet.forEach(function(deadId) { map.delete(deadId); });
+            App.records = Array.from(map.values());
+            if (localOnlyCount > 0) {
+              console.log('[Firebase v3.2] 未アップロードのローカル打刻 ' + localOnlyCount + ' 件を検出 → クラウドへ再送予約');
+              setTimeout(function() { FirebaseSync.saveAllToFirebase(); }, 1500);
+            }
+          }
           if (data.corrections) App.corrections = data.corrections;
           if (data.addressRequests) App.addressRequests = data.addressRequests;
           if (data.overtimeRequests) App.overtimeRequests = data.overtimeRequests;
@@ -3587,7 +3634,14 @@
           if (data.siteDailyReports) App.siteDailyReports = data.siteDailyReports;
           if (data.siteFinanceData) App.siteFinanceData = data.siteFinanceData;
           // 【v3.1.0 ①-C】tombstoneを取得し、records から削除済みidを除外（保険）
-          if (data.deletedRecordIds) App.deletedRecordIds = data.deletedRecordIds;
+          // 【v3.2.0】ローカル分と合算（オフライン中に行った削除のtombstoneを消さない）
+          if (data.deletedRecordIds) {
+            const mergedTomb = new Set([].concat(
+              Array.isArray(data.deletedRecordIds) ? data.deletedRecordIds : [],
+              Array.isArray(App.deletedRecordIds) ? App.deletedRecordIds : []
+            ));
+            App.deletedRecordIds = Array.from(mergedTomb);
+          }
           const _tombstones = Array.isArray(App.deletedRecordIds) ? new Set(App.deletedRecordIds) : new Set();
           if (_tombstones.size > 0 && Array.isArray(App.records)) {
             App.records = App.records.filter(r => r && !_tombstones.has(r.id));
@@ -3670,12 +3724,10 @@
             if (!existing) {
               // 【v3.1.0 ①-C】tombstoneにあるidは「削除済み」なので絶対に復活させない
               if (tombstoneSet.has(local.id)) continue;
-              // ローカルにのみある場合、1分以内なら「直近に打刻したばかりで反映待ち」とみなして保持
-              const ts = new Date(local.updatedAt || local.clockInTime || local.addedAt || 0).getTime();
-              if (now - ts < 60000) {
-                merged.set(local.id, local);
-              }
-              // 1分以上前のローカル専有レコードは捨てる（リモートで削除された）
+              // 【v3.2.0】tombstoneに無いローカル専有レコードは「未アップロードの打刻」として保持
+              //   （旧: 60秒経過で破棄していたため、オフライン打刻が同期時に消えていた。
+              //     削除の判定はtombstoneが担うため時間制限は不要）
+              merged.set(local.id, local);
             } else {
               // 両方にある = updatedAt(なければclockInTime)が新しい方を採用
               const lt = new Date(local.updatedAt || local.clockInTime || local.addedAt || 0).getTime();
@@ -3886,8 +3938,8 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v3.1.0';
-    const APP_UPDATE_DATE = '2026/07/01';
+    const APP_VERSION = 'v3.2.0';
+    const APP_UPDATE_DATE = '2026/07/04';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
     }
@@ -3982,6 +4034,64 @@
         return jst.getFullYear() + '-' + String(jst.getMonth() + 1).padStart(2, '0') + '-' + String(jst.getDate()).padStart(2, '0');
       })(),
       historyMonth: null,
+
+      // ===========================================================================
+      // 【v3.2.0】共通ヘルパー
+      // ===========================================================================
+      // 削除したレコードIDをtombstoneに登録（マージによる復活を防止）
+      markRecordsDeleted: function(ids) {
+        if (!Array.isArray(this.deletedRecordIds)) this.deletedRecordIds = [];
+        const set = new Set(this.deletedRecordIds);
+        (ids || []).forEach(function(id) { if (id) set.add(id); });
+        this.deletedRecordIds = Array.from(set);
+      },
+
+      // 従業員IDの変更（勤怠記録・各種申請・月次確認キーの参照を一括更新し、履歴の孤児化を防止）
+      changeEmployeeId: function(oldId, newId) {
+        const emp = this.employees.find(function(e) { return e.id === oldId; });
+        if (emp) emp.id = newId;
+        const nowIso = new Date().toISOString();
+        (this.records || []).forEach(function(r) {
+          if (r && r.employeeId === oldId) { r.employeeId = newId; r.updatedAt = nowIso; }
+        });
+        (this.corrections || []).forEach(function(c) { if (c && c.employeeId === oldId) c.employeeId = newId; });
+        (this.overtimeRequests || []).forEach(function(o) { if (o && o.employeeId === oldId) o.employeeId = newId; });
+        (this.addressRequests || []).forEach(function(a) { if (a && a.employeeId === oldId) a.employeeId = newId; });
+        if (this.monthlyConfirmations && typeof this.monthlyConfirmations === 'object') {
+          const srcMc = this.monthlyConfirmations;
+          const mc = {};
+          const prefix = String(oldId) + '_';
+          Object.keys(srcMc).forEach(function(k) {
+            if (k.indexOf(prefix) === 0) {
+              mc[String(newId) + k.slice(String(oldId).length)] = srcMc[k];
+            } else {
+              mc[k] = srcMc[k];
+            }
+          });
+          this.monthlyConfirmations = mc;
+        }
+        return emp;
+      },
+
+      // JST基準の「昨日」（YYYY-MM-DD）
+      getYesterday: function() {
+        const p = this.getToday().split('-').map(Number);
+        const d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+        d.setUTCDate(d.getUTCDate() - 1);
+        return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+      },
+
+      // JST基準の現在時（0〜23）。端末のタイムゾーン設定に依存しない
+      getJstHour: function() {
+        const now = new Date();
+        const jst = new Date(now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000);
+        return jst.getHours();
+      },
+
+      // 日付文字列＋時分から JST の Date を生成（端末TZ非依存）
+      jstDateTime: function(dateStr, hour, min) {
+        return new Date(dateStr + 'T' + String(hour).padStart(2, '0') + ':' + String(min).padStart(2, '0') + ':00+09:00');
+      },
 
       save: function() {
         // ===========================================================================
@@ -4221,10 +4331,8 @@
       getPastWorkingRecord: function() {
         if (!this.currentUser) return null;
         const today = this.getToday();
-        // 昨日の日付を計算
-        const todayDate = new Date(today + 'T00:00:00');
-        todayDate.setDate(todayDate.getDate() - 1);
-        const yesterday = todayDate.toISOString().split('T')[0];
+        // 【v3.2.0】昨日をJST基準で算出（旧: toISOString()経由でUTCに戻り、日本の端末では1日ズレていた）
+        const yesterday = this.getYesterday();
         // 昨日の未退勤のみを返す（それより過去は無視）
         return this.records.find(r => 
           r.employeeId === this.currentUser.id && 
@@ -4477,7 +4585,7 @@
             <p class="status-text">🟢 勤務中</p>
             ${!showTimes ? '<p class="status-detail">区分: ' + shiftLabel + '</p>' : ''}
             ${showTimes ? '<p class="status-detail">始業: ' + App.formatTime(workingRecord.clockInTime) + '</p>' : ''}
-            <p class="status-detail">現場: ${workingRecord.jobSiteName}</p>
+            <p class="status-detail">現場: ${esc(workingRecord.jobSiteName)}</p>
           `;
         } else if (completedRecords.length > 0) {
           const lastRecord = completedRecords[completedRecords.length - 1];
@@ -4489,7 +4597,7 @@
             ${!showTimes ? '<p class="status-detail">区分: ' + lastShiftLabel + '</p>' : ''}
             ${showTimes ? '<p class="status-detail">合計勤務時間: ' + totalHours.toFixed(1) + '時間</p>' : ''}
             ${showTimes ? '<p class="status-detail">最終: ' + App.formatTime(lastRecord.clockInTime) + ' 〜 ' + App.formatTime(lastRecord.clockOutTime) + '</p>' : ''}
-            <p class="status-detail">現場: ${lastRecord.jobSiteName}</p>
+            <p class="status-detail">現場: ${esc(lastRecord.jobSiteName)}</p>
           `;
         }
 
@@ -4503,7 +4611,7 @@
               <div class="today-record">
                 <span class="today-record-num">${index + 1}回目</span>
                 ${!showTimes ? '<span class="today-record-shift">' + shiftLabel + '</span>' : ''}
-                <span class="today-record-site">${r.jobSiteName}</span>
+                <span class="today-record-site">${esc(r.jobSiteName)}</span>
                 ${showTimes ? '<span class="today-record-time">' + App.formatTime(r.clockInTime) + ' 〜 ' + App.formatTime(r.clockOutTime) + '</span>' : ''}
                 <span class="today-record-status ${r.status}">${r.status === 'working' ? '勤務中' : '完了'}</span>
                 <button class="correction-btn" data-record="${r.id}">修正依頼</button>
@@ -4637,11 +4745,11 @@
             ${calendarHtml}
           </div>
           <div class="home-content">
-            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.title || ''}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
+            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${esc(App.announcement.title || '')}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
             ${paidLeaveHtml}
             <div class="greeting">
               <p class="greeting-text">${App.getGreeting()}</p>
-              <h2 class="user-name">${App.currentUser.name} さん</h2>
+              <h2 class="user-name">${esc(App.currentUser.name)} さん</h2>
             </div>
             <div class="button-container">
               <button id="clockInBtn" class="main-btn clock-in-btn" ${isWorking || hasPastWorking ? 'disabled' : ''}>
@@ -4685,7 +4793,7 @@
         App.jobSites
           .filter(s => s.isActive && recentSiteIds.has(s.id))
           .forEach(site => {
-            siteOptions += `<option value="${site.id}">${site.name}</option>`;
+            siteOptions += `<option value="${site.id}">${esc(site.name)}</option>`;
           });
 
         // 【v3.0.0】今打刻すると日勤/夜勤になるかを表示
@@ -4703,7 +4811,7 @@
           <div class="form-content">
             <div class="info-row">
               <span class="info-label">従業員</span>
-              <span class="info-value">${App.currentUser.name}</span>
+              <span class="info-value">${esc(App.currentUser.name)}</span>
             </div>
             <div class="info-row">
               <span class="info-label">シフト</span>
@@ -4757,11 +4865,11 @@
             ${warningHtml}
             <div class="info-row">
               <span class="info-label">従業員</span>
-              <span class="info-value">${App.currentUser.name}</span>
+              <span class="info-value">${esc(App.currentUser.name)}</span>
             </div>
             <div class="info-row">
               <span class="info-label">現場</span>
-              <span class="info-value">${record ? record.jobSiteName : ''}</span>
+              <span class="info-value">${record ? esc(record.jobSiteName) : ''}</span>
             </div>
             <div class="info-row">
               <span class="info-label">シフト</span>
@@ -4924,9 +5032,8 @@
       },
 
       history: function() {
-        // 現在の年月を確実に取得
-        const nowDate = new Date();
-        const currentMonth = nowDate.getFullYear() + '-' + String(nowDate.getMonth() + 1).padStart(2, '0');
+        // 現在の年月を確実に取得（【v3.2.0】JST基準に統一）
+        const currentMonth = App.getToday().slice(0, 7);
         
         // 選択中の月（デフォルトは今月）
         const selectedMonth = App.historyMonth || currentMonth;
@@ -5039,7 +5146,7 @@
               statusHtml += `
                 <div class="day-record" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
                   <div style="flex:1;">
-                    <div class="day-site">${shiftLabel} / ${r.jobSiteName}</div>
+                    <div class="day-site">${shiftLabel} / ${esc(r.jobSiteName)}</div>
                     ${timeLineHtml}
                   </div>
                   ${canDeleteThis ? `<button class="hist-del-btn" data-record-id="${r.id}" style="padding:5px 10px; background:#ef4444; color:#fff; border:none; border-radius:4px; font-size:11px; cursor:pointer; white-space:nowrap;">削除</button>` : ''}
@@ -5160,11 +5267,11 @@
             <span class="header-title">管理者メニュー</span>
           </div>
           <div class="admin-content">
-            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.title || ''}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
+            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${esc(App.announcement.title || '')}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
             <p class="admin-date">${App.formatDate(App.getToday())}</p>
             
             <div class="admin-clockin-section">
-              <p class="admin-greeting">${App.currentUser.name} さん</p>
+              <p class="admin-greeting">${esc(App.currentUser.name)} さん</p>
               <div class="admin-buttons">
                 <button id="adminClockIn" class="admin-btn clock-in" ${isWorking ? 'disabled' : ''}>
                   🌅 始業
@@ -5254,7 +5361,7 @@
                 <h3 class="announcement-title">📢 全員へお知らせ</h3>
                 ${App.announcement ? `
                   <div class="current-announcement">
-                    <p class="current-announcement-text">${App.announcement.title || ''}</p>
+                    <p class="current-announcement-text">${esc(App.announcement.title || '')}</p>
                     <p class="current-announcement-date">送信: ${new Date(App.announcement.createdAt).toLocaleString('ja-JP')}</p>
                     <button id="cancelAnnouncement" class="cancel-announcement-btn">取り消し</button>
                   </div>
@@ -5301,11 +5408,11 @@
             <span class="header-title">管理者（副）メニュー</span>
           </div>
           <div class="admin-content">
-            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${App.announcement.title || ''}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
+            ${App.announcement ? `<div class="home-announcement"><p class="home-announcement-text">📢 ${esc(App.announcement.title || '')}</p><button id="viewAnnouncementBtn" class="view-announcement-btn">詳細を見る →</button></div>` : ''}
             <p class="admin-date">${App.formatDate(App.getToday())}</p>
             
             <div class="subadmin-clockin-section">
-              <p class="subadmin-greeting">${App.currentUser.name} さん</p>
+              <p class="subadmin-greeting">${esc(App.currentUser.name)} さん</p>
               <div class="subadmin-buttons">
                 <button id="subadminClockIn" class="subadmin-btn clock-in" ${isWorking ? 'disabled' : ''}>
                   🌅 始業
@@ -5397,7 +5504,7 @@
             // 未始業
             gridHtml += `
               <div class="attendance-cell absent">
-                <span class="attendance-name">${emp.name}</span>
+                <span class="attendance-name">${esc(emp.name)}</span>
                 <span class="attendance-mark">✕</span>
               </div>
             `;
@@ -5426,9 +5533,9 @@
             
             gridHtml += `
               <div class="attendance-cell present ${allCompleted ? 'all-completed' : ''}" data-emp-id="${emp.id}">
-                <span class="attendance-name">${emp.name}</span>
+                <span class="attendance-name">${esc(emp.name)}</span>
                 <div class="attendance-marks">${marksHtml}</div>
-                <span class="attendance-site">${shortSiteName}</span>
+                <span class="attendance-site">${esc(shortSiteName)}</span>
               </div>
             `;
           }
@@ -5520,8 +5627,8 @@
             
             activeGridHtml += `
               <div class="site-cell ${hasWorkers ? 'active' : 'inactive'} ${allCompleted ? 'all-completed' : ''}" 
-                   data-site-name="${site.name}" data-site-id="${site.id}">
-                <span class="site-cell-name">${site.name}</span>
+                   data-site-name="${esc(site.name)}" data-site-id="${site.id}">
+                <span class="site-cell-name">${esc(site.name)}</span>
                 <span class="site-cell-mark">${hasWorkers ? '◯' : '✕'}</span>
                 ${hasWorkers ? `<span class="site-cell-count">${data.total}名</span>` : ''}
                 ${site.scaffoldingDone ? '<span class="site-scaffolding-badge">架け済</span>' : ''}
@@ -5575,8 +5682,8 @@
         } else {
           completedSites.forEach(site => {
             gridHtml += `
-              <div class="site-cell completed-site" data-site-id="${site.id}" data-site-name="${site.name}">
-                <span class="site-cell-name">${site.name}</span>
+              <div class="site-cell completed-site" data-site-id="${site.id}" data-site-name="${esc(site.name)}">
+                <span class="site-cell-name">${esc(site.name)}</span>
                 <span class="site-cell-mark">✓</span>
                 <span class="site-cell-date">${site.completedDate}</span>
               </div>
@@ -5620,7 +5727,7 @@
           sitesHtml += `
             <div class="finance-card-link" data-site-id="${site.id}">
               <div class="finance-header">
-                <span class="finance-site-name">${site.name}</span>
+                <span class="finance-site-name">${esc(site.name)}</span>
                 ${statusBadge}
               </div>
               <div class="finance-link-text">タップして詳細を見る →</div>
@@ -5705,7 +5812,7 @@
           </div>
           <div class="list-content">
             <div class="finance-top-summary">
-              <div class="finance-top-name">${site.name}</div>
+              <div class="finance-top-name">${esc(site.name)}</div>
               <div class="finance-top-row">
                 <span>収支</span>
                 <span class="${profitClass}">${profit >= 0 ? '+' : ''}¥${profit.toLocaleString()}</span>
@@ -5851,9 +5958,8 @@
         const selectedEmp = employees.find(e => e.id === selectedEmpId);
         
         // 選択中の月（デフォルトは今月）
-        // 現在の年月を確実に取得
-        const nowDate = new Date();
-        const currentMonth = nowDate.getFullYear() + '-' + String(nowDate.getMonth() + 1).padStart(2, '0');
+        // 現在の年月を確実に取得（【v3.2.0】JST基準に統一）
+        const currentMonth = App.getToday().slice(0, 7);
         const selectedMonth = App.employeeHistoryMonth || currentMonth;
         
         // 従業員セレクトボックス
@@ -5866,7 +5972,7 @@
             const _c = (App.monthlyConfirmations && App.monthlyConfirmations[_k]) || null;
             mark = (_c && _c.confirmed) ? '✅ ' : '⏳ ';
           }
-          empOptions += `<option value="${emp.id}" ${emp.id === selectedEmpId ? 'selected' : ''}>${mark}${emp.name}</option>`;
+          empOptions += `<option value="${emp.id}" ${emp.id === selectedEmpId ? 'selected' : ''}>${mark}${esc(emp.name)}</option>`;
         });
         
         // 月セレクトボックス（過去7年=84ヶ月）
@@ -5952,7 +6058,7 @@
               statusHtml += `
                 <div class="day-record emp-hist-record" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px;">
                   <div style="flex: 1;">
-                    <div class="day-site">${shiftLabel} / ${r.jobSiteName}</div>
+                    <div class="day-site">${shiftLabel} / ${esc(r.jobSiteName)}</div>
                     <div class="day-time">${timeStr}${hoursStr}</div>
                   </div>
                   <button class="edit-record-btn" data-record-id="${r.id}" style="padding: 6px 12px; background: #3b82f6; color: #fff; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; white-space: nowrap;">編集</button>
@@ -6005,7 +6111,7 @@
             siteRows += `
               <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-bottom:1px solid #1e293b;">
                 <div style="flex:1; min-width:0;">
-                  <div style="color:#e2e8f0; font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🏗️ ${s.name}</div>
+                  <div style="color:#e2e8f0; font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🏗️ ${esc(s.name)}</div>
                   <div style="color:#94a3b8; font-size:11px; margin-top:2px;">☀️日勤 ${s.day}日 ／ 🌙夜勤 ${s.night}日</div>
                 </div>
                 <div style="text-align:right; white-space:nowrap; margin-left:8px;">
@@ -6126,7 +6232,7 @@
               <div class="master-header">
                 <span class="master-name">
                   <span class="employee-id-badge">ID: ${emp.id}</span>
-                  ${emp.name}
+                  ${esc(emp.name)}
                 </span>
                 <span class="role-badge ${emp.role}">${roleText}</span>
               </div>
@@ -6144,7 +6250,7 @@
                 <div class="edit-row">
                   <label class="edit-label">名前</label>
                   <div class="edit-input-group">
-                    <input type="text" class="edit-input name-input" data-emp="${emp.id}" value="${emp.name}">
+                    <input type="text" class="edit-input name-input" data-emp="${emp.id}" value="${esc(emp.name)}">
                     <button class="edit-save-btn save-name-btn" data-emp="${emp.id}">変更</button>
                   </div>
                 </div>
@@ -6207,7 +6313,7 @@
                 <div class="master-header">
                   <span class="master-name">
                     <span class="employee-id-badge">ID: ${emp.id}</span>
-                    ${emp.name}
+                    ${esc(emp.name)}
                   </span>
                   <button class="restore-btn" data-emp="${emp.id}">復旧</button>
                 </div>
@@ -6279,14 +6385,14 @@
           sitesHtml += `
             <div class="master-card">
               <div class="master-header">
-                <span class="master-name">🏗️ ${site.name}</span>
+                <span class="master-name">🏗️ ${esc(site.name)}</span>
               </div>
-              <p class="master-detail">${site.address || '住所未設定'}</p>
+              <p class="master-detail">${esc(site.address || '住所未設定')}</p>
               <p class="master-detail" style="font-size: 12px; color: #64748b;">勤怠記録: ${recordCount}件</p>
               <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
                 <button class="toggle-btn ${site.isActive ? 'active' : 'inactive'}" data-site="${site.id}">${site.isActive ? '有効' : '無効'}</button>
-                <button class="merge-site-btn" data-site-id="${site.id}" data-site-name="${site.name}" style="padding: 6px 12px; background: #f59e0b; color: #fff; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">統合</button>
-                <button class="delete-site-btn" data-site-id="${site.id}" data-site-name="${site.name}" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">削除</button>
+                <button class="merge-site-btn" data-site-id="${site.id}" data-site-name="${esc(site.name)}" style="padding: 6px 12px; background: #f59e0b; color: #fff; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">統合</button>
+                <button class="delete-site-btn" data-site-id="${site.id}" data-site-name="${esc(site.name)}" style="padding: 6px 12px; background: #ef4444; color: #fff; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">削除</button>
               </div>
             </div>
           `;
@@ -6339,11 +6445,11 @@
                 <p class="correction-date">📅 ${App.formatDate(c.workDate)}</p>
                 <p class="correction-detail">
                   <strong>申請内容:</strong><br>
-                  現場: ${c.jobSiteName || '不明'}<br>
+                  現場: ${esc(c.jobSiteName || '不明')}<br>
                   始業: ${startTime}<br>
                   終業: ${endTime}
                 </p>
-                ${c.comment ? `<p class="correction-reason">📝 ${c.comment}</p>` : ''}
+                ${c.comment ? `<p class="correction-reason">📝 ${esc(c.comment)}</p>` : ''}
               `;
             } else {
               // 旧形式：既存の記録を参照
@@ -6351,10 +6457,10 @@
               detailHtml = `
                 <p class="correction-date">📅 ${App.formatDate(c.recordDate)}</p>
                 <p class="correction-detail">
-                  現場: ${record ? record.jobSiteName : '不明'}<br>
+                  現場: ${record ? esc(record.jobSiteName) : '不明'}<br>
                   記録: ${record ? App.formatTime(record.clockInTime) + ' 〜 ' + App.formatTime(record.clockOutTime) : '不明'}
                 </p>
-                <p class="correction-reason">📝 ${c.reason}</p>
+                <p class="correction-reason">📝 ${esc(c.reason)}</p>
               `;
             }
             
@@ -6383,7 +6489,7 @@
             correctionsHtml += `
               <div class="correction-card ${statusClass}">
                 <div class="correction-header">
-                  <span class="correction-employee">${c.employeeName}</span>
+                  <span class="correction-employee">${esc(c.employeeName)}</span>
                   <span class="correction-status ${statusClass}">${statusText}</span>
                 </div>
                 ${detailHtml}
@@ -6414,12 +6520,12 @@
             requestsHtml += `
               <div class="address-request-card">
                 <div class="address-request-header">
-                  <span class="address-request-employee">${req.employeeName}</span>
+                  <span class="address-request-employee">${esc(req.employeeName)}</span>
                   <span class="address-request-date">${new Date(req.createdAt).toLocaleDateString('ja-JP')}</span>
                 </div>
                 <p class="address-request-detail">
                   <strong>新住所:</strong><br>
-                  ${req.newAddress}
+                  ${esc(req.newAddress)}
                 </p>
                 <div class="address-request-actions">
                   <button class="confirm-address-btn" data-request="${req.id}">✓ 確認済み（削除）</button>
@@ -6461,7 +6567,7 @@
             requestsHtml += `
               <div class="overtime-request-card ${statusClass}">
                 <div class="overtime-request-header">
-                  <span class="overtime-request-employee">${req.employeeName}</span>
+                  <span class="overtime-request-employee">${esc(req.employeeName)}</span>
                   <span class="overtime-request-status ${statusClass}">${statusText}</span>
                 </div>
                 <div class="overtime-request-detail">
@@ -6487,7 +6593,7 @@
         // 管理者から残業を直接追加
         let employeeOptions = '';
         App.getVisibleEmployees(false).forEach(emp => {
-          employeeOptions += `<option value="${emp.id}">${emp.name}</option>`;
+          employeeOptions += `<option value="${emp.id}">${esc(emp.name)}</option>`;
         });
 
         return `
@@ -6534,8 +6640,8 @@
               <p class="announcement-desc">入力した内容が全従業員のホーム画面に表示されます。</p>
               
               <div class="announcement-form">
-                <input type="text" id="announcementTitle" class="announcement-input" style="margin-bottom: 12px;" placeholder="タイトル（ホーム画面に表示されます）" value="${currentAnnouncement ? currentAnnouncement.title || '' : ''}">
-                <textarea id="announcementText" class="announcement-input" style="min-height: 120px;" placeholder="本文（詳細ページに表示されます）">${currentAnnouncement ? currentAnnouncement.message : ''}</textarea>
+                <input type="text" id="announcementTitle" class="announcement-input" style="margin-bottom: 12px;" placeholder="タイトル（ホーム画面に表示されます）" value="${currentAnnouncement ? esc(currentAnnouncement.title || '') : ''}">
+                <textarea id="announcementText" class="announcement-input" style="min-height: 120px;" placeholder="本文（詳細ページに表示されます）">${currentAnnouncement ? esc(currentAnnouncement.message) : ''}</textarea>
                 <button id="sendAnnouncementBtn" class="announcement-btn send">📤 お知らせを送信</button>
               </div>
             </div>
@@ -6544,8 +6650,8 @@
               <div class="announcement-section current">
                 <h3 class="form-title">📌 現在配信中のお知らせ</h3>
                 <div class="current-announcement">
-                  <p class="current-announcement-text" style="font-weight: 600; margin-bottom: 8px;">📢 ${currentAnnouncement.title || 'お知らせ'}</p>
-                  <p class="current-announcement-text" style="white-space: pre-wrap;">${currentAnnouncement.message}</p>
+                  <p class="current-announcement-text" style="font-weight: 600; margin-bottom: 8px;">📢 ${esc(currentAnnouncement.title || 'お知らせ')}</p>
+                  <p class="current-announcement-text" style="white-space: pre-wrap;">${esc(currentAnnouncement.message)}</p>
                   <p class="current-announcement-date">送信日時: ${new Date(currentAnnouncement.createdAt).toLocaleString('ja-JP')}</p>
                 </div>
                 <button id="cancelAnnouncementBtn" class="announcement-btn cancel">🗑️ お知らせを取り消す</button>
@@ -6633,7 +6739,7 @@
                     <div class="site-delete-item">
                       <label class="site-delete-checkbox">
                         <input type="checkbox" class="site-checkbox" data-site-id="${site.id}">
-                        <span class="site-delete-name">${site.name}</span>
+                        <span class="site-delete-name">${esc(site.name)}</span>
                       </label>
                       <span class="site-delete-info">${status}・${recordsForSite}件</span>
                     </div>
@@ -6777,9 +6883,9 @@
           </div>
           <div class="list-content">
             <div style="background: #1e293b; border-radius: 12px; padding: 20px;">
-              <h2 style="font-size: 18px; color: #f8fafc; margin: 0 0 16px 0;">📢 ${title}</h2>
+              <h2 style="font-size: 18px; color: #f8fafc; margin: 0 0 16px 0;">📢 ${esc(title)}</h2>
               ${body ? `<div style="background: #0f172a; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-                <p style="font-size: 14px; color: #e2e8f0; white-space: pre-wrap; line-height: 1.7; margin: 0;">${body}</p>
+                <p style="font-size: 14px; color: #e2e8f0; white-space: pre-wrap; line-height: 1.7; margin: 0;">${esc(body)}</p>
               </div>` : ''}
               <p style="font-size: 11px; color: #64748b; text-align: right; margin: 0;">
                 ${new Date(announcement.createdAt).toLocaleString('ja-JP')}
@@ -7028,7 +7134,7 @@
               // 現場オプションを生成
               let siteOptions = '<option value="">-- 現場を選択 --</option>';
               App.jobSites.filter(s => s.isActive).forEach(site => {
-                siteOptions += `<option value="${site.id}">${site.name}</option>`;
+                siteOptions += `<option value="${site.id}">${esc(site.name)}</option>`;
               });
               
               // モーダルHTML
@@ -7164,9 +7270,13 @@
                 alert('このIDは既に使用されています');
                 return;
               }
+              if (!/^[0-9a-zA-Z_-]+$/.test(newId)) {
+                alert('IDは半角英数字（-, _ 可）で入力してください');
+                return;
+              }
+              const oldId = App.currentUser.id;
+              App.changeEmployeeId(oldId, newId); // 【v3.2.0】勤怠記録・各種申請の参照も一括更新
               App.currentUser.id = newId;
-              const emp = App.employees.find(e => e.id === App.currentUser.id || e.name === App.currentUser.name);
-              if (emp) emp.id = newId;
               App.save();
               alert('IDを「' + newId + '」に変更しました');
               self.render('settings');
@@ -7235,10 +7345,14 @@
           if (submitOvertimeBtn) {
             submitOvertimeBtn.addEventListener('click', function() {
               const workDate = document.getElementById('overtimeDateInput').value;
-              const hours = parseInt(document.getElementById('overtimeHoursInput').value);
+              const hours = parseInt(document.getElementById('overtimeHoursInput').value, 10);
               
               if (!workDate) {
                 alert('日付を選択してください');
+                return;
+              }
+              if (!Number.isFinite(hours) || hours < 1 || hours > 10) {
+                alert('残業時間は1〜10の数値で入力してください');
                 return;
               }
               
@@ -7295,12 +7409,13 @@
                 alert('このIDは既に使用されています');
                 return;
               }
-              const oldId = App.currentUser.id;
-              App.currentUser.id = newId;
-              const emp = App.employees.find(e => e.id === oldId);
-              if (emp) {
-                emp.id = newId;
+              if (!/^[0-9a-zA-Z_-]+$/.test(newId)) {
+                alert('IDは半角英数字（-, _ 可）で入力してください');
+                return;
               }
+              const oldId = App.currentUser.id;
+              App.changeEmployeeId(oldId, newId); // 【v3.2.0】勤怠記録・各種申請の参照も一括更新
+              App.currentUser.id = newId;
               App.save();
               alert('IDを「' + newId + '」に変更しました');
               self.render('adminSettings');
@@ -7352,8 +7467,7 @@
           const histCanEdit = (App.currentUser.role === 'worker' || App.currentUser.role === 'parttime');
 
           // 現在選択中の月（history: function 側と同じ算出）
-          const _nowDate = new Date();
-          const _currentMonth = _nowDate.getFullYear() + '-' + String(_nowDate.getMonth() + 1).padStart(2, '0');
+          const _currentMonth = App.getToday().slice(0, 7); // 【v3.2.0】JST基準に統一
           const histSelectedMonth = App.historyMonth || _currentMonth;
           const histConfKey = App.currentUser.id + '_' + histSelectedMonth;
 
@@ -7373,7 +7487,7 @@
                 // 現場オプション（有効な現場のみ）
                 let siteOptions = '<option value="">-- 現場を選択 --</option>';
                 App.jobSites.filter(function(s) { return s.isActive; }).forEach(function(site) {
-                  siteOptions += '<option value="' + site.id + '">' + site.name + '</option>';
+                  siteOptions += '<option value="' + site.id + '">' + esc(site.name) + '</option>';
                 });
 
                 const modalHtml = ''
@@ -7585,7 +7699,7 @@
               // 現場オプションを生成
               let siteOptions = '<option value="">-- 現場を選択 --</option>';
               App.jobSites.filter(s => s.isActive).forEach(site => {
-                siteOptions += `<option value="${site.id}">${site.name}</option>`;
+                siteOptions += `<option value="${site.id}">${esc(site.name)}</option>`;
               });
               
               // 時間オプションを生成
@@ -7610,7 +7724,7 @@
                     <div class="modal-info">
                       <div class="modal-info-row">
                         <span class="modal-info-label">従業員</span>
-                        <span class="modal-info-value">${emp.name}</span>
+                        <span class="modal-info-value">${esc(emp.name)}</span>
                       </div>
                       <div class="modal-info-row">
                         <span class="modal-info-label">対象日</span>
@@ -7686,9 +7800,8 @@
                 
                 const site = App.jobSites.find(s => s.id === siteId);
                 
-                // 始業時刻を作成
-                const clockInDate = new Date(workDate + 'T00:00:00');
-                clockInDate.setHours(parseInt(startHour), parseInt(startMin), 0, 0);
+                // 始業時刻を作成（【v3.2.0】JST明示で端末TZ非依存に）
+                const clockInDate = App.jstDateTime(workDate, parseInt(startHour), parseInt(startMin));
                 
                 // 終業時刻を作成
                 let clockOutDate = null;
@@ -7696,10 +7809,9 @@
                 let status = 'working';
                 
                 if (endHour !== '' && endMin !== '') {
-                  clockOutDate = new Date(workDate + 'T00:00:00');
-                  clockOutDate.setHours(parseInt(endHour), parseInt(endMin), 0, 0);
+                  clockOutDate = App.jstDateTime(workDate, parseInt(endHour), parseInt(endMin));
                   if (clockOutDate <= clockInDate) {
-                    clockOutDate.setDate(clockOutDate.getDate() + 1);
+                    clockOutDate = new Date(clockOutDate.getTime() + 24 * 60 * 60 * 1000);
                   }
                   workHours = (clockOutDate - clockInDate) / (1000 * 60 * 60);
                   workHours = Math.round(workHours * 100) / 100;
@@ -7785,7 +7897,7 @@
               let siteOptions = '';
               App.jobSites.filter(s => s.isActive).forEach(site => {
                 const selected = site.id === record.jobSiteId ? 'selected' : '';
-                siteOptions += `<option value="${site.id}" ${selected}>${site.name}</option>`;
+                siteOptions += `<option value="${site.id}" ${selected}>${esc(site.name)}</option>`;
               });
               
               // 残業オプション生成
@@ -7806,7 +7918,7 @@
                     <div class="modal-info">
                       <div class="modal-info-row">
                         <span class="modal-info-label">従業員</span>
-                        <span class="modal-info-value">${record.employeeName}</span>
+                        <span class="modal-info-value">${esc(record.employeeName)}</span>
                       </div>
                       <div class="modal-info-row">
                         <span class="modal-info-label">日付</span>
@@ -8066,8 +8178,8 @@
               const originalText = this.textContent;
               this.textContent = '保存中...';
 
-              // 夜勤判定（17時〜翌5時の出勤は夜勤）
-              const clockInHour = new Date().getHours();
+              // 夜勤判定（17時〜翌5時の出勤は夜勤）【v3.2.0】端末TZに依存しないJST時刻で判定
+              const clockInHour = App.getJstHour();
               const shiftType = (clockInHour >= 17 || clockInHour < 5) ? 'night' : 'day';
 
               const newRecord = {
@@ -8151,7 +8263,7 @@
               // 日勤で日付をまたいでいる場合は17:00に強制
               if (isPastRecord && record.shiftType === 'day') {
                 // 出勤日の17:00で退勤
-                clockOutTime = new Date(record.workDate + 'T17:00:00');
+                clockOutTime = new Date(record.workDate + 'T17:00:00+09:00'); // 【v3.2.0】JST明示
                 console.log('[退勤] 日勤の日付またぎ → ' + record.workDate + ' 17:00 で処理');
               } else {
                 // 通常の退勤（現在時刻）
@@ -8368,7 +8480,7 @@
                   const statusText = r.status === 'working' ? '勤務中' : '終業';
                   workersHtml += `
                     <div class="site-worker-row">
-                      <span class="site-worker-name">${r.employeeName}</span>
+                      <span class="site-worker-name">${esc(r.employeeName)}</span>
                       <span class="site-worker-time">${App.formatTime(r.clockInTime)}〜${r.clockOutTime ? App.formatTime(r.clockOutTime) : ''}</span>
                       <span class="site-worker-status ${statusClass}">${statusText}</span>
                     </div>
@@ -8379,7 +8491,7 @@
               }
               
               const detailHtml = `
-                <h3 class="site-detail-title">🏗️ ${siteName}</h3>
+                <h3 class="site-detail-title">🏗️ ${esc(siteName)}</h3>
                 <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">${App.formatDate(selectedDate)}</p>
                 
                 <div class="site-detail-section">
@@ -8406,7 +8518,7 @@
                     <input type="number" id="subcontractAmountInput" class="site-report-input" value="${report.subcontractAmount}" min="0">
                   </div>
                   <button class="site-report-save-btn" id="saveSiteReportBtn" 
-                    data-date="${selectedDate}" data-site="${siteName}">
+                    data-date="${selectedDate}" data-site="${esc(siteName)}">
                     💾 保存
                   </button>
                 </div>
@@ -8500,7 +8612,7 @@
               
               if (site) {
                 const detailHtml = `
-                  <h3 class="site-detail-title">✅ ${siteName}</h3>
+                  <h3 class="site-detail-title">✅ ${esc(siteName)}</h3>
                   <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">完工日: ${site.completedDate}</p>
                   
                   <div class="site-detail-section">
@@ -8696,7 +8808,7 @@
               
               if (site) {
                 const detailHtml = `
-                  <h3 class="site-detail-title">✅ ${siteName}</h3>
+                  <h3 class="site-detail-title">✅ ${esc(siteName)}</h3>
                   <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">完工日: ${site.completedDate}</p>
                   
                   <div class="site-detail-section">
@@ -8760,13 +8872,13 @@
               const visibleEmployees = App.getVisibleEmployees(true);
               let empOptions = '<option value="">-- 従業員を選択 --</option>';
               visibleEmployees.forEach(emp => {
-                empOptions += `<option value="${emp.id}">${emp.name}</option>`;
+                empOptions += `<option value="${emp.id}">${esc(emp.name)}</option>`;
               });
               
               // 現場オプションを生成
               let siteOptions = '<option value="">-- 現場を選択 --</option>';
               App.jobSites.filter(s => s.isActive).forEach(site => {
-                siteOptions += `<option value="${site.id}">${site.name}</option>`;
+                siteOptions += `<option value="${site.id}">${esc(site.name)}</option>`;
               });
               
               // 時間オプションを生成
@@ -8870,9 +8982,8 @@
                 const emp = App.employees.find(e => e.id === empId);
                 const site = App.jobSites.find(s => s.id === siteId);
                 
-                // 始業時刻を作成
-                const clockInDate = new Date(workDate + 'T00:00:00');
-                clockInDate.setHours(parseInt(startHour), parseInt(startMin), 0, 0);
+                // 始業時刻を作成（【v3.2.0】JST明示で端末TZ非依存に）
+                const clockInDate = App.jstDateTime(workDate, parseInt(startHour), parseInt(startMin));
                 
                 // 終業時刻を作成
                 let clockOutDate = null;
@@ -8880,10 +8991,9 @@
                 let status = 'working';
                 
                 if (endHour !== '' && endMin !== '') {
-                  clockOutDate = new Date(workDate + 'T00:00:00');
-                  clockOutDate.setHours(parseInt(endHour), parseInt(endMin), 0, 0);
+                  clockOutDate = App.jstDateTime(workDate, parseInt(endHour), parseInt(endMin));
                   if (clockOutDate <= clockInDate) {
-                    clockOutDate.setDate(clockOutDate.getDate() + 1);
+                    clockOutDate = new Date(clockOutDate.getTime() + 24 * 60 * 60 * 1000);
                   }
                   workHours = (clockOutDate - clockInDate) / (1000 * 60 * 60);
                   workHours = Math.round(workHours * 100) / 100;
@@ -8932,14 +9042,14 @@
               const overtimeHours = record.overtimeHours || 0;
               
               const detailHtml = `
-                <h3 class="attendance-detail-name">${record.employeeName}</h3>
+                <h3 class="attendance-detail-name">${esc(record.employeeName)}</h3>
                 <div class="attendance-detail-row">
                   <span class="attendance-detail-label">状態</span>
                   <span class="attendance-detail-value" style="color: ${record.status === 'completed' ? '#f59e0b' : '#10b981'}">${statusLabel}</span>
                 </div>
                 <div class="attendance-detail-row">
                   <span class="attendance-detail-label">現場</span>
-                  <span class="attendance-detail-value">${record.jobSiteName}</span>
+                  <span class="attendance-detail-value">${esc(record.jobSiteName)}</span>
                 </div>
                 <div class="attendance-detail-row">
                   <span class="attendance-detail-label">区分</span>
@@ -8966,8 +9076,8 @@
                 <button class="attendance-detail-map-btn" id="showMapFromDetail" 
                   data-lat="${record.clockInLat || ''}" 
                   data-lng="${record.clockInLng || ''}"
-                  data-name="${record.employeeName}"
-                  data-site="${record.jobSiteName}"
+                  data-name="${esc(record.employeeName)}"
+                  data-site="${esc(record.jobSiteName)}"
                   data-time="${App.formatTime(record.clockInTime)}"
                   ${!hasGps ? 'disabled' : ''}>
                   📍 ${hasGps ? '打刻場所を地図で見る' : '位置情報なし'}
@@ -9080,7 +9190,7 @@
                       attribution: '© OpenStreetMap'
                     }).addTo(modalMap);
                     L.marker([lat, lng]).addTo(modalMap)
-                      .bindPopup(name + '<br>' + site).openPopup();
+                      .bindPopup(esc(name) + '<br>' + esc(site)).openPopup();
                   }, 100);
                 });
               }
@@ -9123,7 +9233,11 @@
                 return;
               }
 
-              const maxId = Math.max(...App.employees.filter(e => e.id !== 'admin').map(e => parseInt(e.id)));
+              // 【v3.2.0】非数値ID混在時のNaN採番を防止（削除済み従業員のIDとも衝突させない）
+              const idPool = App.employees.concat(App.deletedEmployees || [])
+                .map(e => parseInt(e.id, 10))
+                .filter(n => Number.isFinite(n));
+              const maxId = idPool.length > 0 ? Math.max(...idPool) : 11;
               const newId = (maxId + 1).toString();
 
               const newEmp = {
@@ -9310,8 +9424,12 @@
                 return;
               }
               
-              const emp = App.employees.find(e => e.id === oldId);
-              emp.id = newId;
+              if (!/^[0-9a-zA-Z_-]+$/.test(newId)) {
+                alert('IDは半角英数字（-, _ 可）で入力してください');
+                return;
+              }
+              App.changeEmployeeId(oldId, newId); // 【v3.2.0】勤怠記録・各種申請の参照も一括更新
+              if (App.currentUser && App.currentUser.id === oldId) App.currentUser.id = newId;
               App.save();
               alert('IDを「' + newId + '」に変更しました');
               self.render('employeeMaster');
@@ -9635,20 +9753,18 @@
                   `終業: ${endTime}`
                 )) return;
                 
-                // 出勤記録を作成
-                const clockInDate = new Date(correction.workDate + 'T00:00:00');
-                clockInDate.setHours(correction.startHour, correction.startMin, 0, 0);
+                // 出勤記録を作成（【v3.2.0】JST明示で端末TZ非依存に）
+                const clockInDate = App.jstDateTime(correction.workDate, correction.startHour, correction.startMin);
                 
                 let clockOutDate = null;
                 let workHours = null;
                 let status = 'working';
                 
                 if (correction.endHour !== null) {
-                  clockOutDate = new Date(correction.workDate + 'T00:00:00');
-                  clockOutDate.setHours(correction.endHour, correction.endMin, 0, 0);
+                  clockOutDate = App.jstDateTime(correction.workDate, correction.endHour, correction.endMin);
                   // 終業が始業より早い場合は翌日
                   if (clockOutDate <= clockInDate) {
-                    clockOutDate.setDate(clockOutDate.getDate() + 1);
+                    clockOutDate = new Date(clockOutDate.getTime() + 24 * 60 * 60 * 1000);
                   }
                   workHours = (clockOutDate - clockInDate) / (1000 * 60 * 60);
                   workHours = Math.round(workHours * 100) / 100;
@@ -9709,6 +9825,7 @@
                 // 旧形式：承認で記録削除
                 if (!confirm('この修正依頼を承認し、該当の勤怠記録を削除しますか？')) return;
                 
+                App.markRecordsDeleted([correction.recordId]); // 【v3.2.0】tombstone登録で復活防止
                 App.records = App.records.filter(r => r.id !== correction.recordId);
                 correction.status = 'approved';
                 correction.processedAt = new Date().toISOString();
@@ -9953,7 +10070,11 @@
                   addressRequests: App.addressRequests,
                   siteDailyReports: App.siteDailyReports,
                   siteFinanceData: App.siteFinanceData,
-                  deletedEmployees: App.deletedEmployees
+                  deletedEmployees: App.deletedEmployees,
+                  overtimeRequests: App.overtimeRequests || [],
+                  monthlyConfirmations: App.monthlyConfirmations || {},
+                  deletedRecordIds: App.deletedRecordIds || [],
+                  announcement: App.announcement || null
                 }
               };
               
@@ -10002,6 +10123,10 @@
                     if (backupData.data.siteDailyReports) App.siteDailyReports = backupData.data.siteDailyReports;
                     if (backupData.data.siteFinanceData) App.siteFinanceData = backupData.data.siteFinanceData;
                     if (backupData.data.deletedEmployees) App.deletedEmployees = backupData.data.deletedEmployees;
+                    if (backupData.data.overtimeRequests) App.overtimeRequests = backupData.data.overtimeRequests;
+                    if (backupData.data.monthlyConfirmations) App.monthlyConfirmations = backupData.data.monthlyConfirmations;
+                    if (backupData.data.deletedRecordIds) App.deletedRecordIds = backupData.data.deletedRecordIds;
+                    if (backupData.data.announcement !== undefined) App.announcement = backupData.data.announcement;
                     
                     App.save();
                     alert('バックアップを復元しました');
@@ -10025,6 +10150,8 @@
               const count = App.records.filter(r => r.workDate < sixMonthsAgoStr).length;
               
               if (confirm(`6ヶ月以上前の勤怠記録 ${count}件 を削除しますか？\nこの操作は取り消せません。`)) {
+                // 【v3.2.0】tombstone登録（未登録だとマージで即復活し、削除が無効だった）
+                App.markRecordsDeleted(App.records.filter(r => r.workDate < sixMonthsAgoStr).map(r => r.id));
                 App.records = App.records.filter(r => r.workDate >= sixMonthsAgoStr);
                 App.save();
                 alert(`${count}件の勤怠記録を削除しました`);
@@ -10043,6 +10170,8 @@
               const count = App.records.filter(r => r.workDate < oneYearAgoStr).length;
               
               if (confirm(`1年以上前の勤怠記録 ${count}件 を削除しますか？\nこの操作は取り消せません。`)) {
+                // 【v3.2.0】tombstone登録（未登録だとマージで即復活し、削除が無効だった）
+                App.markRecordsDeleted(App.records.filter(r => r.workDate < oneYearAgoStr).map(r => r.id));
                 App.records = App.records.filter(r => r.workDate >= oneYearAgoStr);
                 App.save();
                 alert(`${count}件の勤怠記録を削除しました`);
@@ -10126,8 +10255,9 @@
                 // 現場を削除
                 App.jobSites = App.jobSites.filter(s => !siteIds.includes(s.id));
                 
-                // 関連する勤怠記録を削除
+                // 関連する勤怠記録を削除（【v3.2.0】tombstone登録で復活防止）
                 siteNames.forEach(name => {
+                  App.markRecordsDeleted(App.records.filter(r => r.jobSiteName === name).map(r => r.id));
                   App.records = App.records.filter(r => r.jobSiteName !== name);
                 });
                 
@@ -10160,10 +10290,10 @@
           const resetAllData = document.getElementById('resetAllData');
           if (resetAllData) {
             resetAllData.addEventListener('click', function() {
-              if (confirm('⚠️ 警告 ⚠️\n\n本当にすべてのデータを削除しますか？\n\n・勤怠記録\n・現場データ\n・収支データ\n・修正依頼\n・住所変更届\n\nすべて初期状態に戻ります。\nこの操作は取り消せません。')) {
-                if (confirm('最終確認：本当に削除してよろしいですか？')) {
+              if (confirm('⚠️ 確認 ⚠️\n\nこの端末に保存されたキャッシュを初期化しますか？\n\n※ クラウド（Firebase）上の勤怠記録・現場データは削除されません。\n再起動時にクラウドから最新データを取得し直します。')) {
+                if (confirm('最終確認：この端末のキャッシュを初期化してよろしいですか？')) {
                   localStorage.clear();
-                  alert('全データを削除しました。\nページをリロードします。');
+                  alert('この端末のキャッシュを初期化しました。\nページをリロードします。');
                   location.reload();
                 }
               }
@@ -10200,6 +10330,14 @@
                 return;
               }
 
+              // 【v3.2.0】CSVフィールドの安全化（カンマ・引用符・改行の破損防止／Excel数式インジェクション対策）
+              function csvField(v) {
+                let s = (v === null || v === undefined) ? '' : String(v);
+                if (/^[=+\-@\t]/.test(s)) s = "'" + s;
+                if (/[",\r\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+                return s;
+              }
+
               // 法定休憩時間を計算する関数
               function getBreakHours(workHours) {
                 if (workHours <= 6) return 0;
@@ -10223,7 +10361,7 @@
                   // 記録に時給があればそれを使う
                   const recordRate = r.hourlyRate || (emp ? emp.hourlyRate : 0);
                   const dailyPay = isParttime ? Math.round(actualHours * recordRate) : (emp ? emp.dailyRate : 15000);
-                  csv += `${r.workDate},${r.employeeName},${role},${r.jobSiteName},${App.formatTime(r.clockInTime)},${App.formatTime(r.clockOutTime)},${workHours.toFixed(1)},${breakHours.toFixed(2)},${actualHours.toFixed(1)},${isParttime ? recordRate : '-'},${dailyPay},"${r.memo || ''}"\n`;
+                  csv += `${r.workDate},${csvField(r.employeeName)},${role},${csvField(r.jobSiteName)},${App.formatTime(r.clockInTime)},${App.formatTime(r.clockOutTime)},${workHours.toFixed(1)},${breakHours.toFixed(2)},${actualHours.toFixed(1)},${isParttime ? recordRate : '-'},${dailyPay},${csvField(r.memo || '')}\n`;
                 });
               } else if (exportType === 'summary') {
                 // 月次集計
@@ -10264,7 +10402,7 @@
                 Object.keys(summary).forEach(name => {
                   const s = summary[name];
                   const roleText = s.role === 'parttime' ? 'アルバイト' : (s.role === 'manager' ? '責任者' : '作業員');
-                  csv += `${name},${roleText},${s.days},${s.hours.toFixed(1)},${s.breakHours.toFixed(1)},${s.actualHours.toFixed(1)},${s.totalPay}\n`;
+                  csv += `${csvField(name)},${roleText},${s.days},${s.hours.toFixed(1)},${s.breakHours.toFixed(1)},${s.actualHours.toFixed(1)},${s.totalPay}\n`;
                 });
               } else if (exportType === 'site') {
                 // 現場別集計
@@ -10286,7 +10424,7 @@
                 });
                 Object.keys(siteSummary).forEach(site => {
                   const s = siteSummary[site];
-                  csv += `${site},${s.workers.length},${s.count},"${s.workers.join('、')}"\n`;
+                  csv += `${csvField(site)},${s.workers.length},${s.count},${csvField(s.workers.join('、'))}\n`;
                 });
               }
 
@@ -10348,11 +10486,35 @@
       }
     }
 
+    // ===========================================================================
+    // 【v3.2.0】匿名認証（Firestoreセキュリティルール強化の前提）
+    //   Firebase Console で Anonymous 認証を有効化し、Firestoreルールを
+    //   `allow read, write: if request.auth != null;` に変更すると、
+    //   アプリを経由しない無認証アクセスを遮断できる。
+    //   Auth未有効・SDK未読込・失敗時は従来通り動作する（後方互換）。
+    // ===========================================================================
+    async function ensureAuth(timeoutMs) {
+      try {
+        if (typeof firebase === 'undefined' || !firebase.auth || !db) return;
+        if (firebase.auth().currentUser) return;
+        await Promise.race([
+          firebase.auth().signInAnonymously().then(function() {
+            console.log('[Firebase v3.2] 匿名認証OK');
+          }),
+          new Promise(function(res) { setTimeout(res, timeoutMs || 4000); })
+        ]);
+      } catch (e) {
+        console.warn('[Firebase v3.2] 匿名認証スキップ（Console未有効の可能性）:', e && e.code ? e.code : e);
+      }
+    }
+
     // アプリ起動（Firebase初期化）
     async function initApp() {
       document.getElementById('app').innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;"><div style="font-size:48px;margin-bottom:20px;">⏳</div><div style="color:#94a3b8;">データ同期中...</div></div>';
       
       try {
+        // 【v3.2.0】ルールが認証必須の場合に備え、先に匿名認証を確立
+        await ensureAuth(4000);
         // 【重要】まずFirebaseからデータを読み込む（Firebaseが正）
         const loaded = await FirebaseSync.loadAllFromFirebase();
         
