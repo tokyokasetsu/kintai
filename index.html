@@ -3939,7 +3939,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v3.2.1';
+    const APP_VERSION = 'v3.3.0';
     const APP_UPDATE_DATE = '2026/07/04';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -4596,7 +4596,7 @@
         
         let statusHtml = '<p class="status-text">未始業</p>';
         if (isWorking) {
-          const shiftLabel = workingRecord.shiftType === 'night' ? '夜勤' : '日勤';
+          const shiftLabel = workingRecord.shiftType === 'night' ? '夜勤' : (workingRecord.shiftType === 'half' ? '半日' : '日勤');
           statusHtml = `
             <p class="status-text">🟢 勤務中</p>
             ${!showTimes ? '<p class="status-detail">区分: ' + shiftLabel + '</p>' : ''}
@@ -4606,7 +4606,7 @@
         } else if (completedRecords.length > 0) {
           const lastRecord = completedRecords[completedRecords.length - 1];
           const totalHours = completedRecords.reduce((sum, r) => sum + (r.workHours || 0), 0);
-          const lastShiftLabel = lastRecord.shiftType === 'night' ? '夜勤' : '日勤';
+          const lastShiftLabel = lastRecord.shiftType === 'night' ? '夜勤' : (lastRecord.shiftType === 'half' ? '半日' : '日勤');
           statusHtml = `
             <p class="status-text">✅ 本日 ${completedRecords.length}回 勤務完了</p>
             <p class="status-otsukare">お疲れさまでした！</p>
@@ -4622,7 +4622,7 @@
         if (todayRecords.length > 0) {
           todayHistoryHtml = '<div class="today-history"><p class="section-title">本日の勤怠</p>';
           todayRecords.forEach((r, index) => {
-            const shiftLabel = r.shiftType === 'night' ? '夜勤' : '日勤';
+            const shiftLabel = r.shiftType === 'night' ? '夜勤' : (r.shiftType === 'half' ? '半日' : '日勤');
             todayHistoryHtml += `
               <div class="today-record">
                 <span class="today-record-num">${index + 1}回目</span>
@@ -4854,11 +4854,13 @@
         // 【v3.0.0】打刻画面から時刻表示を削除（労基対策）。シフト表示のみ。
         const shiftLabel = record && record.shiftType === 'night'
           ? '<span style="display:inline-block; padding:4px 12px; background:#1e3a8a; color:#fff; border-radius:6px; font-weight:600;">🌙 夜勤</span>'
-          : '<span style="display:inline-block; padding:4px 12px; background:#fbbf24; color:#000; border-radius:6px; font-weight:600;">☀️ 日勤</span>';
+          : (record && record.shiftType === 'half'
+            ? '<span style="display:inline-block; padding:4px 12px; background:#64748b; color:#fff; border-radius:6px; font-weight:600;">🌗 半日</span>'
+            : '<span style="display:inline-block; padding:4px 12px; background:#fbbf24; color:#000; border-radius:6px; font-weight:600;">☀️ 日勤</span>');
         
         // 過去の未退勤の警告メッセージ
         let warningHtml = '';
-        if (isPastRecord && record.shiftType === 'day') {
+        if (isPastRecord && (record.shiftType === 'day' || record.shiftType === 'half')) {
           warningHtml = `
             <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
               <p style="color: #92400e; font-weight: 600; margin: 0;">⚠️ ${record.workDate} の退勤処理です</p>
@@ -5139,7 +5141,7 @@
             
             dayRecords.forEach(r => {
               const isNight = r.shiftType === 'night';
-              const shiftLabel = isNight ? '夜勤' : '日勤';
+              const shiftLabel = isNight ? '夜勤' : (r.shiftType === 'half' ? '半日' : '日勤');
               // 正社員(worker)は時刻・実働時間を非表示
               const showTimes = App.currentUser.role === 'parttime' || App.currentUser.role === 'admin' || App.currentUser.role === 'subadmin';
               // 【v3.1.0 ②】時刻なし記録(noTime/本人の自己申告)は時刻欄を出さず「自己申告」と表示
@@ -6064,7 +6066,7 @@
             
             dayRecords.forEach(r => {
               const isNight = r.shiftType === 'night';
-              const shiftLabel = isNight ? '<span style="color: #ef4444; font-weight: 600;">夜勤</span>' : '<span style="color: #3b82f6;">日勤</span>';
+              const shiftLabel = isNight ? '<span style="color: #ef4444; font-weight: 600;">夜勤</span>' : (r.shiftType === 'half' ? '<span style="color: #64748b; font-weight: 600;">半日</span>' : '<span style="color: #3b82f6;">日勤</span>');
               const timeStr = App.formatTime(r.clockInTime) + '〜' + (r.clockOutTime ? App.formatTime(r.clockOutTime) : '勤務中');
               let hoursStr = '';
               if (r.workHours) {
@@ -7520,10 +7522,11 @@
                   + '      <select id="histAddSite" class="modal-select">' + siteOptions + '</select>'
                   + '    </div>'
                   + '    <div class="modal-form-group">'
-                  + '      <label class="modal-label">日勤 / 夜勤</label>'
+                  + '      <label class="modal-label">区分（日勤 / 夜勤 / 半日）</label>'
                   + '      <select id="histAddShift" class="modal-select">'
                   + '        <option value="day">☀️ 日勤</option>'
                   + '        <option value="night">🌙 夜勤</option>'
+                  + '        <option value="half">🌗 半日（0.5人工）</option>'
                   + '      </select>'
                   + '    </div>'
                   + '    <div class="modal-buttons">'
@@ -7609,7 +7612,7 @@
                   return;
                 }
 
-                if (!confirm('この出勤記録を削除しますか？\n\n' + rec.workDate + '\n' + (rec.shiftType === 'night' ? '夜勤' : '日勤') + ' / ' + rec.jobSiteName + '\n\nこの操作は取り消せません。')) {
+                if (!confirm('この出勤記録を削除しますか？\n\n' + rec.workDate + '\n' + (rec.shiftType === 'night' ? '夜勤' : (rec.shiftType === 'half' ? '半日' : '日勤')) + ' / ' + rec.jobSiteName + '\n\nこの操作は取り消せません。')) {
                   return;
                 }
 
@@ -7780,10 +7783,11 @@
                     </div>
                     
                     <div class="modal-form-group">
-                      <label class="modal-label">日勤 / 夜勤</label>
+                      <label class="modal-label">区分（日勤 / 夜勤 / 半日）</label>
                       <select id="addEmpShiftType" class="modal-select">
                         <option value="day">☀️ 日勤</option>
                         <option value="night">🌙 夜勤</option>
+                        <option value="half">🌗 半日（0.5人工）</option>
                       </select>
                     </div>
                     
@@ -7925,8 +7929,9 @@
                 overtimeOptions += `<option value="${ot}" ${selected}>${ot}時間</option>`;
               }
               
-              // 日勤/夜勤
+              // 日勤/夜勤/半日
               const isNight = record.shiftType === 'night';
+              const isHalf = record.shiftType === 'half';
               
               // モーダルHTML
               const modalHtml = `
@@ -7950,10 +7955,11 @@
                     </div>
                     
                     <div class="modal-form-group">
-                      <label class="modal-label">日勤 / 夜勤</label>
+                      <label class="modal-label">区分（日勤 / 夜勤 / 半日）</label>
                       <select id="editShiftType" class="modal-select">
-                        <option value="day" ${!isNight ? 'selected' : ''}>☀️ 日勤</option>
+                        <option value="day" ${(!isNight && !isHalf) ? 'selected' : ''}>☀️ 日勤</option>
                         <option value="night" ${isNight ? 'selected' : ''}>🌙 夜勤</option>
+                        <option value="half" ${isHalf ? 'selected' : ''}>🌗 半日（0.5人工）</option>
                       </select>
                     </div>
                     
@@ -8279,7 +8285,7 @@
               let clockOutTime;
               
               // 日勤で日付をまたいでいる場合は17:00に強制
-              if (isPastRecord && record.shiftType === 'day') {
+              if (isPastRecord && (record.shiftType === 'day' || record.shiftType === 'half')) {
                 // 出勤日の17:00で退勤
                 clockOutTime = new Date(record.workDate + 'T17:00:00+09:00'); // 【v3.2.0】JST明示
                 console.log('[退勤] 日勤の日付またぎ → ' + record.workDate + ' 17:00 で処理');
@@ -8330,7 +8336,7 @@
                 return;
               }
               
-              if (isPastRecord && record.shiftType === 'day') {
+              if (isPastRecord && (record.shiftType === 'day' || record.shiftType === 'half')) {
                 alert('✅ ' + record.workDate + ' の終業を記録しました。\nお疲れさまでした！');
               } else {
                 alert('✅ 終業を記録しました！お疲れさまでした！');
@@ -8960,10 +8966,11 @@
                     </div>
                     
                     <div class="modal-form-group">
-                      <label class="modal-label">日勤 / 夜勤</label>
+                      <label class="modal-label">区分（日勤 / 夜勤 / 半日）</label>
                       <select id="addShiftType" class="modal-select">
                         <option value="day">☀️ 日勤</option>
                         <option value="night">🌙 夜勤</option>
+                        <option value="half">🌗 半日（0.5人工）</option>
                       </select>
                     </div>
                     
@@ -9055,7 +9062,7 @@
               if (!record) return;
 
               const hasGps = record.clockInLat && record.clockInLng;
-              const shiftLabel = record.shiftType === 'night' ? '🌙 夜勤' : '☀️ 日勤';
+              const shiftLabel = record.shiftType === 'night' ? '🌙 夜勤' : (record.shiftType === 'half' ? '🌗 半日' : '☀️ 日勤');
               const statusLabel = record.status === 'completed' ? '終業' : '勤務中';
               const overtimeHours = record.overtimeHours || 0;
               
