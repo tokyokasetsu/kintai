@@ -3966,8 +3966,8 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v3.3.3';
-    const APP_UPDATE_DATE = '2026/07/04';
+    const APP_VERSION = 'v3.3.4';
+    const APP_UPDATE_DATE = '2026/09/14';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
     }
@@ -4565,7 +4565,7 @@
           <div class="login-container">
             <div class="logo-section">
               <div class="logo">🏗️</div>
-              <h1 class="app-title">勤怠管理</h1>
+              <h1 class="app-title">勤怠管理 <span style="font-size:14px;font-weight:700;color:#fbbf24;">${APP_VERSION}</span></h1>
               <p class="app-subtitle">東京架設</p>
             </div>
             <div class="refresh-notice" style="background: #450a0a; border: 1px solid #dc2626; border-radius: 8px; padding: 12px; margin-bottom: 16px; text-align: center;">
@@ -10541,6 +10541,7 @@
             <div class="logo">🔐</div>
             <h1 class="app-title">アクセス認証</h1>
             <p class="app-subtitle">勤怠管理システム【東京架設】</p>
+            <p style="text-align:center;margin:6px 0 0;font-size:18px;font-weight:700;color:#fbbf24;">バージョン ${APP_VERSION}（${APP_UPDATE_DATE}）</p>
           </div>
           <div id="accessError" class="login-error"></div>
           <div class="input-group">
