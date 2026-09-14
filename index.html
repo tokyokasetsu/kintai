@@ -3432,12 +3432,24 @@
             const remoteTombstones = Array.isArray(remote.deletedRecordIds) ? remote.deletedRecordIds : [];
             const localTombstones = Array.isArray(App.deletedRecordIds) ? App.deletedRecordIds : [];
             const tombstoneSet = new Set([...remoteTombstones, ...localTombstones]);
+            // 【v3.3.2】バックアップ復元で明示的に戻したレコードはtombstoneから除外
+            if (App._restoreIds && App._restoreIds.size) { App._restoreIds.forEach(function(id){ tombstoneSet.delete(id); }); }
             for (const deadId of tombstoneSet) {
               merged.delete(deadId);
             }
             const mergedTombstones = Array.from(tombstoneSet);
             
             const finalRecords = Array.from(merged.values());
+            // 【v3.3.2】Firestore 1ドキュメント上限(1MB)の監視。上限に達すると全端末の保存が失敗するため事前に警告
+            try {
+              const payloadStr = JSON.stringify({ r: finalRecords, d: App.siteDailyReports || {}, f: App.siteFinanceData || {}, c: App.corrections || [], o: App.overtimeRequests || [], t: mergedTombstones, e: App.employees || [], s: App.jobSites || [] });
+              const approxBytes = (typeof TextEncoder !== 'undefined') ? new TextEncoder().encode(payloadStr).length : payloadStr.length * 2;
+              App._docApproxBytes = approxBytes;
+              if (approxBytes > 850 * 1024 && !App._sizeWarningShown) {
+                App._sizeWarningShown = true;
+                setTimeout(function(){ try { alert('⚠️ 勤怠データの容量が上限(1MB)に近づいています（約' + Math.round(approxBytes / 1024) + 'KB）。\n上限に達すると全端末で保存できなくなります。古い年度の記録を別保存へ分離する対応が必要です（削除ではありません）。'); } catch(_){} }, 0);
+              }
+            } catch (_) {}
             
             // ---- 安全チェック: マージ後がリモートの95%未満なら異常 ----
             // ※ tombstoneによる正当な削除分は減少して当然なので、
@@ -3470,6 +3482,7 @@
             App.records = finalRecords;
             App._firebaseRecordsCount = finalRecords.length;
             App.deletedRecordIds = mergedTombstones;
+            App._restoreIds = null;
             
             // 【v3.0.0】スナップショットを更新（次回save時の差分判定用）
             try {
@@ -3821,6 +3834,9 @@
           siteDailyReports: App.siteDailyReports || {},
           siteFinanceData: App.siteFinanceData || {},
           announcement: App.announcement || null,
+          overtimeRequests: App.overtimeRequests || [],          // 【v3.3.2】給与の残業集計元。旧: 未保存
+          monthlyConfirmations: App.monthlyConfirmations || {},  // 【v3.3.2】
+          deletedRecordIds: App.deletedRecordIds || [],          // 【v3.3.2】
           backupDate: now.toISOString(),
           recordsCount: App.records.length,
           employeesCount: App.employees.length
@@ -3902,6 +3918,17 @@
           App.employees = data.employees || App.employees;
           App.jobSites = data.jobSites || App.jobSites;
           App.records = uniqueRecords;
+          // 【v3.3.2】復元したレコードはtombstone（削除済みid）から外す。旧: 削除済みidが残ったままsaveすると
+          //   マージ時に再び消され、「削除を取り消す目的の復元」が効いていなかった
+          const restoredIds = new Set(uniqueRecords.map(r => r.id));
+          App.deletedRecordIds = (App.deletedRecordIds || []).filter(id => !restoredIds.has(id));
+          App._restoreIds = restoredIds;
+          if (Array.isArray(data.overtimeRequests)) {
+            const otMap = new Map((App.overtimeRequests || []).map(q => [q.id, q]));
+            data.overtimeRequests.forEach(q => { if (q && q.id && !otMap.has(q.id)) otMap.set(q.id, q); });
+            App.overtimeRequests = Array.from(otMap.values());
+          }
+          if (data.monthlyConfirmations && typeof data.monthlyConfirmations === 'object') App.monthlyConfirmations = data.monthlyConfirmations;
           App.corrections = data.corrections || [];
           App.addressRequests = data.addressRequests || [];
           App.deletedEmployees = data.deletedEmployees || [];
@@ -3939,7 +3966,7 @@
 
     // 強制リセット（バージョン管理）
     const DATA_VERSION = 'v6_firebase';
-    const APP_VERSION = 'v3.3.0';
+    const APP_VERSION = 'v3.3.3';
     const APP_UPDATE_DATE = '2026/07/04';
     if (localStorage.getItem('kintai_version') !== DATA_VERSION) {
       localStorage.setItem('kintai_version', DATA_VERSION);
@@ -4082,6 +4109,12 @@
         return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
       },
 
+      // 【v3.3.1】打刻の勤務日付: 0時〜4時台の始業は夜勤（前日開始の勤務）なので前日の日付を付ける。
+      //   旧: 常に当日 → 0時またぎで打刻した夜勤が翌日付になり、出勤表・給与明細と1日ズレていた
+      getClockInWorkDate: function(hour) {
+        return (hour < 5) ? this.getYesterday() : this.getToday();
+      },
+
       // JST基準の現在時（0〜23）。端末のタイムゾーン設定に依存しない
       getJstHour: function() {
         const now = new Date();
@@ -4092,6 +4125,11 @@
       // 日付文字列＋時分から JST の Date を生成（端末TZ非依存）
       jstDateTime: function(dateStr, hour, min) {
         return new Date(dateStr + 'T' + String(hour).padStart(2, '0') + ':' + String(min).padStart(2, '0') + ':00+09:00');
+      },
+      // 【v3.3.2】ISO時刻のJST日付（YYYY-MM-DD）。端末TZ非依存
+      jstDateOf: function(iso) {
+        const d = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000);
+        return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
       },
 
       save: function() {
@@ -4377,17 +4415,24 @@
 
       formatTime: function(isoString) {
         if (!isoString) return '--:--';
-        return new Date(isoString).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+        // 【v3.3.3】端末のタイムゾーン設定に関わらずJSTで表示（旧: 端末ローカル時刻）
+        return new Date(isoString).toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' });
       },
 
       formatDate: function(dateStr) {
-        const date = new Date(dateStr);
         const days = ['日', '月', '火', '水', '木', '金', '土'];
+        // 【v3.3.3】'YYYY-MM-DD' は端末TZに依存せず解釈（旧: new Date('YYYY-MM-DD')＝UTC 0時 → 西側TZの端末で前日表示）
+        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr || ''));
+        if (m) {
+          const u = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+          return (u.getUTCMonth() + 1) + '/' + u.getUTCDate() + '（' + days[u.getUTCDay()] + '）';
+        }
+        const date = new Date(dateStr);
         return (date.getMonth() + 1) + '/' + date.getDate() + '（' + days[date.getDay()] + '）';
       },
 
       getGreeting: function() {
-        const hour = new Date().getHours();
+        const hour = App.getJstHour();   // 【v3.3.1】JST
         if (hour < 12) return 'おはようございます';
         if (hour < 18) return 'こんにちは';
         return 'お疲れさまです';
@@ -4550,8 +4595,13 @@
       },
 
       home: function() {
-        const workingRecord = App.getTodayRecord();
-        const pastWorkingRecord = App.getPastWorkingRecord();
+        let workingRecord = App.getTodayRecord();
+        let pastWorkingRecord = App.getPastWorkingRecord();
+        // 【v3.3.1】前日付けの夜勤（0時またぎ）は正午までは「勤務中」として扱い、退勤忘れの警告にしない
+        if (!workingRecord && pastWorkingRecord && pastWorkingRecord.shiftType === 'night' && App.getJstHour() < 12) {
+          workingRecord = pastWorkingRecord;
+          pastWorkingRecord = null;
+        }
         const todayRecords = App.getTodayRecords();
         const completedRecords = todayRecords.filter(r => r.status === 'completed');
         const isWorking = !!workingRecord;
@@ -4813,10 +4863,10 @@
           });
 
         // 【v3.0.0】今打刻すると日勤/夜勤になるかを表示
-        const clockInHour = new Date().getHours();
+        const clockInHour = App.getJstHour();   // 【v3.3.1】判定本体と同じJST時刻で予告（旧: 端末ローカル時刻）
         const willBeNight = (clockInHour >= 17 || clockInHour < 5);
         const shiftBadge = willBeNight 
-          ? '<span style="display:inline-block; padding:4px 12px; background:#1e3a8a; color:#fff; border-radius:6px; font-weight:600;">🌙 夜勤として記録</span>'
+          ? '<span style="display:inline-block; padding:4px 12px; background:#1e3a8a; color:#fff; border-radius:6px; font-weight:600;">🌙 夜勤として記録' + (clockInHour < 5 ? '（' + App.getYesterday() + ' 分）' : '') + '</span>'
           : '<span style="display:inline-block; padding:4px 12px; background:#fbbf24; color:#000; border-radius:6px; font-weight:600;">☀️ 日勤として記録</span>';
 
         return `
@@ -5277,7 +5327,7 @@
           r.employeeId === App.currentUser.id && 
           r.workDate === App.getToday()
         );
-        const isWorking = myTodayRecords.some(r => r.status === 'working');
+        const isWorking = !!App.getWorkingRecord();   // 【v3.3.1】前日付け夜勤も勤務中と判定（退勤処理と同基準）
 
         return `
           <div class="header">
@@ -5418,7 +5468,7 @@
           r.employeeId === App.currentUser.id && 
           r.workDate === App.getToday()
         );
-        const isWorking = myTodayRecords.some(r => r.status === 'working');
+        const isWorking = !!App.getWorkingRecord();   // 【v3.3.1】前日付け夜勤も勤務中と判定（退勤処理と同基準）
 
         return `
           <div class="header">
@@ -6408,7 +6458,7 @@
                 <span class="master-name">🏗️ ${esc(site.name)}</span>
               </div>
               <p class="master-detail">${esc(site.address || '住所未設定')}</p>
-              <p class="master-detail" style="font-size: 12px; color: #64748b;">勤怠記録: ${recordCount}件</p>
+              <p class="master-detail" style="font-size: 12px; color: #64748b;">勤怠記録: ${recordCount}件${App._docApproxBytes ? '　／　推定データ量: ' + Math.round(App._docApproxBytes / 1024) + 'KB（上限1,024KB）' : ''}</p>
               <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
                 <button class="toggle-btn ${site.isActive ? 'active' : 'inactive'}" data-site="${site.id}">${site.isActive ? '有効' : '無効'}</button>
                 <button class="merge-site-btn" data-site-id="${site.id}" data-site-name="${esc(site.name)}" style="padding: 6px 12px; background: #f59e0b; color: #fff; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">統合</button>
@@ -7377,7 +7427,12 @@
               }
               
               if (!App.overtimeRequests) App.overtimeRequests = [];
-              
+              // 【v3.3.2】同じ日の残業が既にある／その日の出勤記録が無い場合は確認（二重登録・記録なし登録の防止）
+              const dupOt = App.overtimeRequests.filter(q => q.employeeId === App.currentUser.id && q.workDate === workDate && q.status === 'approved')
+                              .reduce((s, q) => s + (parseFloat(q.hours) || 0), 0);
+              const hasRec = App.records.some(r => r.employeeId === App.currentUser.id && r.workDate === workDate);
+              if (dupOt > 0 && !confirm('この日は既に残業 ' + dupOt + ' 時間が登録されています。\n追加で ' + hours + ' 時間を登録しますか？')) return;
+              if (!hasRec && !confirm(workDate + ' の出勤記録がありません。\nこのまま残業だけ登録しますか？')) return;
               // 即時承認として登録
               const requestId = Date.now().toString();
               App.overtimeRequests.push({
@@ -7945,7 +8000,7 @@
                       </div>
                       <div class="modal-info-row">
                         <span class="modal-info-label">日付</span>
-                        <span class="modal-info-value">${record.workDate}</span>
+                        <span class="modal-info-value"><input type="date" id="editWorkDate" class="modal-select" value="${record.workDate}" style="width:auto; padding:4px 8px;"></span>
                       </div>
                     </div>
                     
@@ -8013,7 +8068,9 @@
                 const startMin = document.getElementById('editStartMin').value;
                 const endHour = document.getElementById('editEndHour').value;
                 const endMin = document.getElementById('editEndMin').value;
-                const overtime = parseInt(document.getElementById('editOvertime').value);
+                const overtime = parseInt(document.getElementById('editOvertime').value) || 0;   // 【v3.3.2】空欄はNaNでなく0
+                const newWorkDateEl = document.getElementById('editWorkDate');
+                const newWorkDate = (newWorkDateEl && /^\d{4}-\d{2}-\d{2}$/.test(newWorkDateEl.value)) ? newWorkDateEl.value : record.workDate;
                 
                 const site = App.jobSites.find(s => s.id === siteId);
                 
@@ -8028,23 +8085,18 @@
                 
                 // 始業時刻更新
                 if (startHour !== '') {
-                  const newClockIn = new Date(record.clockInTime || record.workDate + 'T00:00:00');
-                  newClockIn.setHours(parseInt(startHour), parseInt(startMin), 0, 0);
+                  // 【v3.3.2】端末TZに依存せずJSTで設定（旧: setHoursは端末ローカル時刻）。日付は元の始業のJST日付を維持
+                  const baseInDate = record.clockInTime ? App.jstDateOf(record.clockInTime) : record.workDate;
+                  const newClockIn = App.jstDateTime(baseInDate, parseInt(startHour), parseInt(startMin));
                   record.clockInTime = newClockIn.toISOString();
                 }
                 
                 // 終業時刻更新
                 if (endHour !== '' && endMin !== '') {
-                  let newClockOut;
-                  if (record.clockOutTime) {
-                    newClockOut = new Date(record.clockOutTime);
-                  } else {
-                    newClockOut = new Date(record.clockInTime);
-                  }
-                  newClockOut.setHours(parseInt(endHour), parseInt(endMin), 0, 0);
-                  // 終業が始業より前なら翌日
+                  // 【v3.3.2】JSTで設定。基準日は始業のJST日付（終業が始業以前なら翌日）
+                  let newClockOut = App.jstDateTime(App.jstDateOf(record.clockInTime), parseInt(endHour), parseInt(endMin));
                   if (newClockOut <= new Date(record.clockInTime)) {
-                    newClockOut.setDate(newClockOut.getDate() + 1);
+                    newClockOut = new Date(newClockOut.getTime() + 24 * 60 * 60 * 1000);
                   }
                   record.clockOutTime = newClockOut.toISOString();
                   record.status = 'completed';
@@ -8061,6 +8113,13 @@
                   record.workHours = null;
                 }
                 
+                // 【v3.3.2】日付の変更（0時またぎで翌日付になった夜勤の是正用）: 時刻はそのまま日付だけ動かす
+                if (newWorkDate !== record.workDate) {
+                  const deltaMs = App.jstDateTime(newWorkDate, 0, 0) - App.jstDateTime(record.workDate, 0, 0);
+                  if (record.clockInTime)  record.clockInTime  = new Date(new Date(record.clockInTime).getTime()  + deltaMs).toISOString();
+                  if (record.clockOutTime) record.clockOutTime = new Date(new Date(record.clockOutTime).getTime() + deltaMs).toISOString();
+                  record.workDate = newWorkDate;
+                }
                 // 残業時間更新
                 record.overtimeHours = overtime;
                 
@@ -8212,7 +8271,7 @@
                 employeeName: App.currentUser.name,
                 jobSiteId: siteId,
                 jobSiteName: siteName,
-                workDate: App.getToday(),
+                workDate: App.getClockInWorkDate(clockInHour),   // 【v3.3.1】0〜4時台の夜勤は前日付け
                 clockInTime: new Date().toISOString(),
                 clockOutTime: null,
                 shiftType: shiftType,
@@ -8246,7 +8305,7 @@
                 return;
               }
 
-              alert('✅ 始業を記録しました！' + (shiftType === 'night' ? '（🌙夜勤）' : '（☀️日勤）'));
+              alert('✅ 始業を記録しました！' + (shiftType === 'night' ? ('（🌙夜勤・' + newRecord.workDate + ' 分）') : '（☀️日勤）'));
               // 役割に応じた画面に戻る
               if (App.currentUser.role === 'admin') {
                 self.render('admin');
@@ -8287,8 +8346,9 @@
               // 日勤で日付をまたいでいる場合は17:00に強制
               if (isPastRecord && (record.shiftType === 'day' || record.shiftType === 'half')) {
                 // 出勤日の17:00で退勤
-                clockOutTime = new Date(record.workDate + 'T17:00:00+09:00'); // 【v3.2.0】JST明示
-                console.log('[退勤] 日勤の日付またぎ → ' + record.workDate + ' 17:00 で処理');
+                var forceHm = (record.shiftType === 'half') ? '12:00' : '17:00';   // 【v3.3.1】半日は12:00
+                clockOutTime = new Date(record.workDate + 'T' + forceHm + ':00+09:00'); // 【v3.2.0】JST明示
+                console.log('[退勤] 日付またぎ → ' + record.workDate + ' ' + forceHm + ' で処理');
               } else {
                 // 通常の退勤（現在時刻）
                 clockOutTime = new Date();
@@ -9803,7 +9863,7 @@
                 const existingRecord = App.records.find(r => 
                   r.employeeId === correction.employeeId &&
                   r.workDate === correction.workDate &&
-                  r.shiftType === shiftType
+                  ((r.shiftType === 'night') === (shiftType === 'night'))   // 【v3.3.1】半日と日勤は同枠（区分は既存記録のまま維持）
                 );
                 
                 if (existingRecord) {
